@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Gaze.js Tests</title>
+    <link rel="stylesheet" href="qunit-1.14.0.css">
+</head>
+
+<body>
+    <!-- Common setup and stuff ... -->
+    <div id="qunit"></div>
+    <div id="qunit-fixture"></div>
+
+    <script src="../vendor/jquery.js"></script>
+    <script src="../vendor/underscore.js"></script>
+    <script src="qunit-1.14.0.js"></script>
+
+    <!-- Include our actual library and tests-->
+    <script src="../gaze.js"></script>
+    <script type="text/javascript">
+        var g1 = gaze
+    </script>
+
+    <script type="text/javascript">        
+        g1.extension({xxx:function() {return 666;}})
+        g1.onproblem(function (x) {
+            console.log(x)
+        })
+        g1.init()
+        console.log(g1.extension())
+        console.log(g1.browser())
+        console.log(g1.browserpixelratio())
+        console.log(g1.screen2window(100, 100))
+    </script>
+
+</body>
+</html>
