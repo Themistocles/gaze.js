@@ -520,6 +520,31 @@ gaze.extension({
 
 
 
+### OVER / OUT ###
+gaze.extension({
+    ongazeover: (elements, listener, options) ->
+        ext = @extension("gazeover")
+
+        if typeof elements == "string"
+            elements = @_document.querySelectorAll elements
+
+}, {
+    id: "gazeover"
+    depends: ["filtered", "watchdog"]
+    handlers: null
+
+    init: (gaze) ->
+        @handlers = gaze.handlers()
+
+        point = (pt) ->
+            work_with_point()
+
+    # Fixation or raw data?
+})
+
+
+
+
 
 ### DWELL ###
 gaze.extension({
@@ -556,9 +581,7 @@ gaze.connectors = {
         socket.onerror = status
         socket.onopen = status
         socket.onclose = status
-        socket.onmessage = (evt) ->
-            console.log (evt)
-            frame JSON.parse(evt.data)
+        socket.onmessage = (evt) -> frame JSON.parse(evt.data)
 
         return {
             tracker: null
