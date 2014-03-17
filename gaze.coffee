@@ -119,7 +119,7 @@ gaze = (@global) ->
     @_onframeconfig = new handlers()
     @_onproblem = new handlers()
     @_currentframe = {}
-
+    @_framenumber = 0
     return @
 
 
@@ -147,7 +147,6 @@ gaze.extension = (fns, module) ->
 
     # And store extension
     extensions[module.id] = module
-
 
 
 ### Core methods ###
@@ -219,6 +218,7 @@ gaze.fn = gaze.prototype = {
     pushed frame. ###
     frame: (frame) -> 
         if frame
+            frame.number = @_framenumber++
             @_currentframe = frame
             @_onframe.invoke frame
         else @_currentframe
@@ -417,7 +417,7 @@ gaze.extension({
         # Called when the first raw handler was added
         module._handlers.onpopulated = () ->
             removal = gaze.onframe (packet) ->
-                module._handlers.invoke packet.raw
+                module._handlers.invoke packet
 
         # Called when the last raw handler was removed
         module._handlers.onempty = () ->
@@ -436,8 +436,7 @@ gaze.extension({
         return ext._handlers.add listener
 
     filter: (filter) ->
-        ext = @extension("filtered")      
-
+        ext = @extension("filtered")              
 }, {
     id: "filtered"
     depends: ["raw", "browser"]    
@@ -445,6 +444,8 @@ gaze.extension({
     ### Initialize this module ###
     init: (gaze, module) -> 
         module._handlers = gaze.handlers()
+        provides_filtered = false
+
         removal = null
 
         # TODO 
@@ -524,6 +525,7 @@ gaze.connectors = {
 
     "mouse": (url, status, frame) ->      
         last = null
+        number = 0
 
         motion = (e) -> last = e        
         tick = () ->
@@ -536,7 +538,7 @@ gaze.connectors = {
                 filtered: {
                     windowX: x
                     windowY: y
-                }                
+                }      
             }
 
         document.addEventListener('mousemove', motion, false);        
