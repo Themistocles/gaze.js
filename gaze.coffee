@@ -39,6 +39,9 @@ _gaze = global.gaze
 
 # Extensions that have been registered
 extensions = {}
+extensionorder = [] # order in which to initialize ["raw", "filtered", "dwell", ...]
+
+
 
 # Potential problems
 #   error = terminal failure to eye tracking until reinitialized
@@ -48,6 +51,11 @@ extensions = {}
 problems = {
     "E_CONNECTIONCLOSED": {
         message: "Connection to the tracker closed unexpectedly. All gaze data halted."
+        type: "error"
+    }
+
+    "E_NOTIMPLEMENTED": {
+        message: "This feature is not implemented at the moment."
         type: "error"
     }
 
@@ -62,6 +70,9 @@ problems = {
         type: "info"
     }
 }
+
+
+### Returns a working resolution order for the extensions ###
 
 
 ### Handlers Class ###
@@ -119,7 +130,6 @@ gaze = (@global) ->
     @_onframeconfig = new handlers()
     @_onproblem = new handlers()
     @_currentframe = {}
-    @_framenumber = 0
     return @
 
 
@@ -148,6 +158,17 @@ gaze.extension = (fns, module) ->
     # And store extension
     extensions[module.id] = module
 
+    # Eventually update the extensionorder based on its dependency graph
+    extensionorder = (name for name of extensions)
+    extensionorder.sort (a, b) ->
+        # If b does not have any dependencies, b goes left
+        if not b.dependencies then return -1
+
+        # If b depends on a, b goes right
+        if b.dependencies.indexOf(a) >= 0 then return 1
+        return -1
+
+
 
 ### Core methods ###
 gaze.fn = gaze.prototype = {
@@ -155,12 +176,11 @@ gaze.fn = gaze.prototype = {
     init: (@url) ->
         if @_initialized then deinit()
 
-        # We should also call init() of our submodules here ...
-        # TODO: order by dependencies!!!
-        console.log("Extensions are not sorted by dependencies at the moment, this will cause bugs...")
-        for id, module of extensions
-            if module.init then module.init @, module
+        # Initialize extensions in proper order
+        for id in extensionorder
+            module = extensions[id]
 
+            if module.init then module.init @, module
 
         gaze = @
         wasconnected = false
@@ -189,9 +209,9 @@ gaze.fn = gaze.prototype = {
         @_initialized = true
 
 
-
     ### Informs registered listeners about a problem ###
-    problem: (id) -> @_onproblem.invoke problems[id]
+    problem: (id) ->
+        @_onproblem.invoke problems[id] or { message: id }
 
     ### Register handler called when there was a problem ###
     onproblem: (handler) -> @_onproblem.add handler
@@ -209,17 +229,22 @@ gaze.fn = gaze.prototype = {
     ### Sets the desired frame rate ###
     fps: (fps) ->
 
-    ### Adds a listener that is called when the frame configuration
-    in the tracker changed (e.g., new channels offered, old channels
-    removed) ###
-    onframeconfig: (handler) -> @_onframeconfig.add handler
-
     ### Pushes a frame to all registered listeners or retrieves the currently
     pushed frame. ###
     frame: (frame) ->
         if frame
-            frame.number = @_framenumber++
             @_currentframe = frame
+
+            # In case
+            if not global.document.hasFocus() then return
+
+            # First let all extensions do their work
+            for id in extensionorder
+                module = extensions[id]
+                if module.onframe
+                    module.onframe frame, @, module
+
+            # Then push frame over official channel
             @_onframe.invoke frame
         else @_currentframe
 
@@ -289,8 +314,7 @@ gaze.extension({
 
 
     ### Converts a screen pixel position to a window position ###
-    screen2window: (x, y) ->
-        return [x, y]
+    screen2window: (x, y) -> return [x, y] # Is overriden in module.init()!
 }, {
     id: "browser"
 
@@ -344,6 +368,16 @@ gaze.extension({
 
     deinit: (gaze, module) -> global.document.removeEventListener @click
 
+    onframe: (frame, gaze, module) ->
+        if not frame.screen then return
+        if not frame.screen.scaletologic then return
+
+        module.desktopzoom = 1.0 / frame.screen.scaletologic
+
+        # Not sure if we should save that often ...
+        localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
+
+
     init: (gaze, module) ->
         module._gaze = gaze
 
@@ -352,17 +386,6 @@ gaze.extension({
         module.desktopzoom = parseFloat(localStorage.getItem("_gaze_desktopzoom")) or 1.0
         module.windowoffsetx = parseInt(localStorage.getItem("_gaze_windowoffsetx")) or 0
         module.windowoffsety = parseInt(localStorage.getItem("_gaze_windowoffsety")) or 0
-
-        # Checks if we have a screen info in the frame
-        gaze.onframe (frame) ->
-            if not frame.screen then return
-            if not frame.screen.scaletologic then return
-
-            module.desktopzoom = 1.0 / frame.screen.scaletologic
-
-            # Not sure if we should save that often ...
-            localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
-
 
         global.document.addEventListener 'click', @click.bind(@)
 
@@ -394,51 +417,42 @@ gaze.extension({
                 wx = (x - global.screenX * p + module.windowoffsetx) / p
                 wy = (y - global.screenY * p + module.windowoffsety) / p
                 return [wx, wy]
-
 })
 
 
 
 ### RAW ###
 gaze.extension({
-
     ### Adds a raw listener and returns a removal handle ###
     onraw: (listener) ->
         ext = @extension("raw")
-        return ext._handlers.add listener
+        ext._handlers.add listener
 }, {
     id: "raw"
-
-    ### Called when a new frame arrives ###
-    onframe: (frame) ->
-
-
 
     ### Initialize this module ###
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
         removal = null
 
-        # Called when the first raw handler was added
+        # Called when the first handler was added
         module._handlers.onpopulated = () ->
             removal = gaze.onframe (packet) ->
                 module._handlers.invoke packet.raw
 
-        # Called when the last raw handler was removed
+        # Called when the last handler was removed
         module._handlers.onempty = () ->
             removal.remove()
 })
 
 
 
-
 ### FILTERED ###
 gaze.extension({
-
     ### Adds a filtered listener and returns a removal handle ###
     onfiltered: (listener) ->
         ext = @extension("filtered")
-        return ext._handlers.add listener
+        ext._handlers.add listener
 
     filter: (filter) ->
         ext = @extension("filtered")
@@ -446,29 +460,41 @@ gaze.extension({
     id: "filtered"
     depends: ["raw", "browser"]
 
+    ### Called when a new frame arrives ###
+    onframe: (frame, gaze, module) ->
+        # Filter data here ...
+        if not frame.filtered
+            throw "Not implemented"
+            frame.filtered = {}
+
+        # And eventually convert to local coordinate system
+        f = frame.filtered
+
+        # See if we don't have already window coordintes
+        if not f.windowX or not f.windowY
+            p = gaze.screen2window(f.screenX, f.screenY)
+
+            # Compute derived element for filtered data
+            f.windowX = p[0]
+            f.windowY = p[1]
+
+        if not f.inwindow
+            f.inwindow = gaze.distance(f.screenX, f.screenX, global.screenX, global.screenY, global.outerWidth, global.outerHeight) == 0
+
+        f.documentX = f.windowX + global.pageXOffset
+        f.documentY = f.windowY + global.pageYOffset
+
+
+
     ### Initialize this module ###
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
-        provides_filtered = false
-
         removal = null
 
-        # TODO
-        # Register for frame config changes ...
-        gaze.onframeconfig (config) ->
-            if provides_filtered
-                listen_to_frame
-                just_pass_along_filtered
-
-            else
-                register_raw
-                filter_ourself
-                send_our_data
-
-        # Called when the first raw handler was added
+        # Called when the first handler was added
         module._handlers.onpopulated = () ->
             removal = gaze.onframe (packet) ->
-                module._handlers.invoke packet.raw
+                module._handlers.invoke packet.filtered
 
         # Called when the last raw handler was removed
         module._handlers.onempty = () ->
@@ -541,8 +567,9 @@ gaze.connectors = {
 
             frame {
                 filtered: {
-                    windowX: x
-                    windowY: y
+                    windowX: x + (Math.random() - 0.5) * 20
+                    windowY: y + (Math.random() - 0.5) * 20
+                    inwindow: true
                 }
             }
 
