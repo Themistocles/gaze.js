@@ -1,19 +1,19 @@
 ###
 
-gaze.js 
+gaze.js
 
 (c) Ralf Biedert, 2014
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
-modification, are permitted provided that the following conditions are met: 
+modification, are permitted provided that the following conditions are met:
 
 1. Redistributions of source code must retain the above copyright notice, this
-   list of conditions and the following disclaimer. 
+   list of conditions and the following disclaimer.
 
 2. Redistributions in binary form must reproduce the above copyright notice,
    this list of conditions and the following disclaimer in the documentation
-   and/or other materials provided with the distribution. 
+   and/or other materials provided with the distribution.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
 ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
@@ -38,29 +38,29 @@ global = window
 _gaze = global.gaze
 
 # Extensions that have been registered
-extensions = {} 
+extensions = {}
 
-# Potential problems 
-#   error = terminal failure to eye tracking until reinitialized 
-#   warning = temporary failure or data likely corrupt 
+# Potential problems
+#   error = terminal failure to eye tracking until reinitialized
+#   warning = temporary failure or data likely corrupt
 #   info = might be problem, might be not
 #
 problems = {
     "E_CONNECTIONCLOSED": {
         message: "Connection to the tracker closed unexpectedly. All gaze data halted."
-        type: "error"        
+        type: "error"
     }
 
     "W_DATASTALL": {
-        message: "The gaze relay (or the eye tracker) unexpectedly stopped 
+        message: "The gaze relay (or the eye tracker) unexpectedly stopped
                 sending data. The application is currently unaware of gaze."
         type: "warning"
-    }        
+    }
 
     "I_MOUSEFALLBACK": {
         message: "Switched to mouse fallback."
         type: "info"
-    }            
+    }
 }
 
 
@@ -87,19 +87,19 @@ handlers.prototype = {
         if size == 0 then @onpopulated()
 
         return handle
-        
+
     ### Calls every handler with the given message ###
-    invoke: (msg) -> 
+    invoke: (msg) ->
         for handler in @_handlers
             handler msg
 
     ### Call f for each handler ###
-    each: (f) -> 
+    each: (f) ->
         for handler in @_handlers
             f handler
 
     ### Removes something from these handlers ###
-    remove: (x) -> 
+    remove: (x) ->
         size = @_handlers.length
         @_handlers = @_handlers.filter (y) -> x isnt y
 
@@ -114,7 +114,7 @@ handlers.prototype = {
 ### Gaze Class ###
 gaze = (@global) ->
     @_document = @global.document
-    @_initialized = false    
+    @_initialized = false
     @_onframe = new handlers()
     @_onframeconfig = new handlers()
     @_onproblem = new handlers()
@@ -124,7 +124,7 @@ gaze = (@global) ->
 
 
 ### Extend the gaze object with more functions  ###
-gaze.extension = (fns, module) -> 
+gaze.extension = (fns, module) ->
     if not module
         module = {}
         module.id = ("unnamed" + Math.random()).replace(".", "")
@@ -133,7 +133,7 @@ gaze.extension = (fns, module) ->
         if gaze.fn[key]
             console.log("Module '" + module.id + "' overrides '" + key + "()'")
 
-        gaze.fn[key] = value 
+        gaze.fn[key] = value
 
     # Safety check we don't override anything
     if module.functions
@@ -141,8 +141,8 @@ gaze.extension = (fns, module) ->
 
     # Transcribe problem IDs
     if module.problems then problems[key] = value for key, value of module.problems
-        
-    # Store functions we added 
+
+    # Store functions we added
     module.functions = fns
 
     # And store extension
@@ -152,10 +152,10 @@ gaze.extension = (fns, module) ->
 ### Core methods ###
 gaze.fn = gaze.prototype = {
     ### Initializes object and connects to an eye tracker ###
-    init: (@url) -> 
+    init: (@url) ->
         if @_initialized then deinit()
 
-        # We should also call init() of our submodules here ... 
+        # We should also call init() of our submodules here ...
         # TODO: order by dependencies!!!
         console.log("Extensions are not sorted by dependencies at the moment, this will cause bugs...")
         for id, module of extensions
@@ -173,19 +173,19 @@ gaze.fn = gaze.prototype = {
 
             if event.type == "close"
                 if wasconnected then gaze.problem("E_CONNECTIONCLOSED")
-                else 
+                else
                     gaze.problem("I_MOUSEFALLBACK")
 
                     connector = gaze.connectors["mouse"]
-                    gaze._tracker = connector(url, status, frame)            
-            
+                    gaze._tracker = connector(url, status, frame)
+
             if event.type == "error"
                 if wasconnected
                     console.log event
- 
+
 
         # Next initialize the eye tracker, or at least try
-        @_tracker = connector(url, status, frame)    
+        @_tracker = connector(url, status, frame)
         @_initialized = true
 
 
@@ -193,11 +193,11 @@ gaze.fn = gaze.prototype = {
     ### Informs registered listeners about a problem ###
     problem: (id) -> @_onproblem.invoke problems[id]
 
-    ### Register handler called when there was a problem ### 
+    ### Register handler called when there was a problem ###
     onproblem: (handler) -> @_onproblem.add handler
 
     ### Deinitializes this object, can be used again afterwards. ###
-    deinit: () ->       
+    deinit: () ->
         for id, module of extensions
             if module.deinit then module.deinit @, module
 
@@ -210,13 +210,13 @@ gaze.fn = gaze.prototype = {
     fps: (fps) ->
 
     ### Adds a listener that is called when the frame configuration
-    in the tracker changed (e.g., new channels offered, old channels 
+    in the tracker changed (e.g., new channels offered, old channels
     removed) ###
     onframeconfig: (handler) -> @_onframeconfig.add handler
 
-    ### Pushes a frame to all registered listeners or retrieves the currently 
+    ### Pushes a frame to all registered listeners or retrieves the currently
     pushed frame. ###
-    frame: (frame) -> 
+    frame: (frame) ->
         if frame
             frame.number = @_framenumber++
             @_currentframe = frame
@@ -230,7 +230,7 @@ gaze.fn = gaze.prototype = {
     version: () -> VERSION
 
     ### Sets or returns an extension ###
-    extension: (fns, module) -> 
+    extension: (fns, module) ->
         if not fns and not module
             return extensions
 
@@ -240,7 +240,7 @@ gaze.fn = gaze.prototype = {
         gaze.extension(fns, module)
 
 
-    ### Removes this gaze object again from global, restores the previous 
+    ### Removes this gaze object again from global, restores the previous
     one and return this. ###
     noconflict: (x) ->
         @global.gaze = _gaze
@@ -250,15 +250,15 @@ gaze.fn = gaze.prototype = {
     distance: (px, py, x, y, w, h) ->
       # TODO: Return actual distance if outside
       if px >= x && px <= x + w && py >= y && py <= y + h then return 0
-      return 1        
+      return 1
 }
 
 
 
 ### WATCHDOG ###
-gaze.extension({} , { 
+gaze.extension({} , {
     id: "watchdog"
-    init: (gaze) ->     
+    init: (gaze) ->
         time = Date.now()
 
         gaze.onframe () ->
@@ -278,7 +278,7 @@ gaze.extension({
         return "unknown"
 
 
-    ### Returns the logical pixel ratio to the OS pixel ratio, i.e., how large the 
+    ### Returns the logical pixel ratio to the OS pixel ratio, i.e., how large the
     browser zoom level is. ###
     browserpixelratio: () ->
         if global.devicePixelRatio then return global.devicePixelRatio
@@ -290,13 +290,13 @@ gaze.extension({
 
     ### Converts a screen pixel position to a window position ###
     screen2window: (x, y) ->
-        return [x, y]        
+        return [x, y]
 }, {
     id: "browser"
 
     problems: {
         "W_ZOOMRATIO": {
-            message: "Unable to determine browser zoom ratio. Your results may be wrong. Try 
+            message: "Unable to determine browser zoom ratio. Your results may be wrong. Try
             zooming to 100% and hope for the best (and use another browser)."
             type: "warning"
         }
@@ -361,13 +361,13 @@ gaze.extension({
             module.desktopzoom = 1.0 / frame.screen.scaletologic
 
             # Not sure if we should save that often ...
-            localStorage.setItem("_gaze_desktopzoom", module.desktopzoom) 
+            localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
 
 
         global.document.addEventListener 'click', @click.bind(@)
 
         # Sets the appropriate screen2window function based on browser
-        if module.browser == "chrome"            
+        if module.browser == "chrome"
             gaze.screen2window = (x, y) ->
                 p = gaze.browserpixelratio()
                 wx = (x - global.screenX + module.windowoffsetx) / p
@@ -404,7 +404,7 @@ gaze.extension({
 
     ### Adds a raw listener and returns a removal handle ###
     onraw: (listener) ->
-        ext = @extension("raw") 
+        ext = @extension("raw")
         return ext._handlers.add listener
 }, {
     id: "raw"
@@ -415,7 +415,7 @@ gaze.extension({
 
 
     ### Initialize this module ###
-    init: (gaze, module) ->     
+    init: (gaze, module) ->
         module._handlers = gaze.handlers()
         removal = null
 
@@ -437,24 +437,24 @@ gaze.extension({
 
     ### Adds a filtered listener and returns a removal handle ###
     onfiltered: (listener) ->
-        ext = @extension("filtered") 
+        ext = @extension("filtered")
         return ext._handlers.add listener
 
     filter: (filter) ->
-        ext = @extension("filtered")              
+        ext = @extension("filtered")
 }, {
     id: "filtered"
-    depends: ["raw", "browser"]    
+    depends: ["raw", "browser"]
 
     ### Initialize this module ###
-    init: (gaze, module) -> 
+    init: (gaze, module) ->
         module._handlers = gaze.handlers()
         provides_filtered = false
 
         removal = null
 
-        # TODO 
-        # Register for frame config changes ... 
+        # TODO
+        # Register for frame config changes ...
         gaze.onframeconfig (config) ->
             if provides_filtered
                 listen_to_frame
@@ -481,18 +481,18 @@ gaze.extension({
 ### DWELL ###
 gaze.extension({
     ondwell: (elements, listener, options) ->
-        ext = @extension("dwell")   
+        ext = @extension("dwell")
 
         if typeof elements == "string"
             elements = @_document.querySelectorAll elements
 
 
 }, {
-    id: "dwell" 
-    depends: ["filtered", "watchdog"]    
+    id: "dwell"
+    depends: ["filtered", "watchdog"]
     handlers: null
 
-    init: (gaze) -> 
+    init: (gaze) ->
         @handlers = gaze.handlers()
 
         point = (pt) ->
@@ -509,7 +509,7 @@ gaze.extension({
 
 ### Connectors we use as backends ###
 gaze.connectors = {
-    "relay": (url, status, frame) -> 
+    "relay": (url, status, frame) ->
         url = "ws://127.0.0.1:44042" if not url?
 
         socket = new WebSocket(url)
@@ -528,11 +528,11 @@ gaze.connectors = {
             }
         }
 
-    "mouse": (url, status, frame) ->      
+    "mouse": (url, status, frame) ->
         last = null
         number = 0
 
-        motion = (e) -> last = e        
+        motion = (e) -> last = e
         tick = () ->
 
             if last
@@ -543,10 +543,10 @@ gaze.connectors = {
                 filtered: {
                     windowX: x
                     windowY: y
-                }      
+                }
             }
 
-        document.addEventListener('mousemove', motion, false);        
+        document.addEventListener('mousemove', motion, false);
         setInterval tick, 30
 
         return {
@@ -554,10 +554,10 @@ gaze.connectors = {
             type: "mouse"
             frameinfo: {
                 filtered: {
-                    
+
                 }
             }
-        }        
+        }
 }
 
 
