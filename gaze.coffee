@@ -409,6 +409,11 @@ gaze.extension({
 }, {
     id: "raw"
 
+    ### Called when a new frame arrives ###
+    onframe: (frame) ->
+
+
+
     ### Initialize this module ###
     init: (gaze, module) ->     
         module._handlers = gaze.handlers()
@@ -417,7 +422,7 @@ gaze.extension({
         # Called when the first raw handler was added
         module._handlers.onpopulated = () ->
             removal = gaze.onframe (packet) ->
-                module._handlers.invoke packet
+                module._handlers.invoke packet.raw
 
         # Called when the last raw handler was removed
         module._handlers.onempty = () ->
