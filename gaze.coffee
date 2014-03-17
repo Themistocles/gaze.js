@@ -520,28 +520,57 @@ gaze.extension({
 
 
 
-### OVER / OUT ###
+### GAZE OVER / OUT ###
 gaze.extension({
     ongazeover: (elements, listener, options) ->
         ext = @extension("gazeover")
 
         if typeof elements == "string"
             elements = @_document.querySelectorAll elements
-
+        
+        if not elements.length # Our test to see if it is an array
+            elements = [elements]
+    
+        ext._handlers.add [elements, listener, options]
 }, {
     id: "gazeover"
-    depends: ["filtered", "watchdog"]
-    handlers: null
+    depends: ["filtered"]
 
-    init: (gaze) ->
-        @handlers = gaze.handlers()
+    init: (gaze, module) ->
+        module._handlers = gaze.handlers()
+        document = gaze.global.document
+        removal = null
 
-        point = (pt) ->
-            work_with_point()
+        func = (p) ->
+            # In case we don't have the focus, we don't do anything
+            if not global.document.hasFocus() then return
 
-    # Fixation or raw data?
+            # Every thing that was registered with on... will be treated individually
+            module._handlers.each (f) ->
+                elements = f[0]
+                callback = f[1]
+
+                for e in elements
+                    # Ignore elements removed from tree 
+                    if not document.body.contains(e) then continue
+
+                    r = e.getBoundingClientRect()
+                    dist = gaze.distance p.windowX, p.windowY, r.left, r.top, r.width, r.height
+
+                    # Check if we hit the element
+                    if dist == 0 and not e._gazeover
+                        callback {type:"over", element: e}
+                        e._gazeover = true
+
+                    if dist > 0 and e._gazeover
+                        callback {type:"out", element: e}
+                        e._gazeover = false
+
+
+        # Called when the first handler was added or removed
+        module._handlers.onpopulated = () -> removal = gaze.onfiltered func
+        module._handlers.onempty = () -> removal.remove()
 })
-
 
 
 
@@ -553,20 +582,69 @@ gaze.extension({
 
         if typeof elements == "string"
             elements = @_document.querySelectorAll elements
+        
+        if not elements.length # Our test to see if it is an array
+            elements = [elements]
 
 
+        _options = {
+            dwellthreshold: options
+            dwelldecay: 100
+        }
+    
+        ext._handlers.add [elements, listener, _options]
 }, {
     id: "dwell"
-    depends: ["filtered", "watchdog"]
-    handlers: null
+    depends: ["filtered"]
 
-    init: (gaze) ->
-        @handlers = gaze.handlers()
+    init: (gaze, module) ->
+        module._handlers = gaze.handlers()
+        document = gaze.global.document
+        removal = null
 
-        point = (pt) ->
-            work_with_point()
+        func = (p) ->
+            # In case we don't have the focus, we don't do anything
+            if not global.document.hasFocus() then return
 
-    # Fixation or raw data?
+            # Every thing that was registered with on... will be treated individually
+            module._handlers.each (f) ->
+                elements = f[0]
+                callback = f[1]
+                options = f[2]
+
+                for e in elements
+                    # Ignore elements removed from tree 
+                    if not document.body.contains(e) then continue
+
+                    # Initialize values not present
+                    e._dwellaccumulatedtime = e._dwellaccumulatedtime || 0
+                    e._dwelllasttime = e._dwelllasttime || Date.now()
+
+                    threshold = options.dwellthreshold
+
+                    r = e.getBoundingClientRect();
+                    dist = gaze.distance p.windowX, p.windowY, r.left, r.top, r.width, r.height
+                    lasttime = e._dwelllasttime
+                    currenttime = Date.now()
+
+                    dt = currenttime - lasttime
+
+                    # Check if we hit the element
+                    if dist == 0
+                        e._dwellaccumulatedtime += dt
+                        if e._dwellaccumulatedtime > threshold
+                            callback {type:"activate", element: e}
+                            e._dwellaccumulatedtime = 0
+
+                    else
+                        e._dwellaccumulatedtime -= options.dwelldecay
+                        e._dwellaccumulatedtime = 0 if e._dwellaccumulatedtime < 0
+
+                    e._dwelllasttime = currenttime
+
+        # Called when the first handler was added or removed
+        module._handlers.onpopulated = () -> removal = gaze.onfiltered func
+        module._handlers.onempty = () -> removal.remove()
 })
 
 
