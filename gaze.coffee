@@ -72,8 +72,6 @@ problems = {
 }
 
 
-### Returns a working resolution order for the extensions ###
-
 
 ### Handlers Class ###
 handlers = () ->
@@ -234,9 +232,6 @@ gaze.fn = gaze.prototype = {
     frame: (frame) ->
         if frame
             @_currentframe = frame
-
-            # In case
-            if not global.document.hasFocus() then return
 
             # First let all extensions do their work
             for id in extensionorder
@@ -435,14 +430,14 @@ gaze.extension({
         module._handlers = gaze.handlers()
         removal = null
 
-        # Called when the first handler was added
-        module._handlers.onpopulated = () ->
-            removal = gaze.onframe (packet) ->
-                module._handlers.invoke packet.raw
+        func = (packet) ->
+            # In case we don't have the focus, we don't do anything
+            if not global.document.hasFocus() then return
+            module._handlers.invoke packet.raw
 
-        # Called when the last handler was removed
-        module._handlers.onempty = () ->
-            removal.remove()
+        # Called when the first handler was added or removed
+        module._handlers.onpopulated = () -> removal = gaze.onframe func
+        module._handlers.onempty = () -> removal.remove()
 })
 
 
@@ -485,20 +480,19 @@ gaze.extension({
         f.documentY = f.windowY + global.pageYOffset
 
 
-
     ### Initialize this module ###
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
         removal = null
 
-        # Called when the first handler was added
-        module._handlers.onpopulated = () ->
-            removal = gaze.onframe (packet) ->
-                module._handlers.invoke packet.filtered
+        func = (packet) ->
+            # In case we don't have the focus, we don't do anything
+            if not global.document.hasFocus() then return
+            module._handlers.invoke packet.filtered
 
-        # Called when the last raw handler was removed
-        module._handlers.onempty = () ->
-            removal.remove()
+        # Called when the first handler was added or removed
+        module._handlers.onpopulated = () -> removal = gaze.onframe func
+        module._handlers.onempty = () -> removal.remove()
 })
 
 
