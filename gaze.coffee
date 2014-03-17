@@ -206,6 +206,9 @@ gaze.fn = gaze.prototype = {
         @_tracker = connector(url, status, frame)
         @_initialized = true
 
+        # Push empty frame as a hack to wake up watchdog
+        frame {}
+
 
     ### Informs registered listeners about a problem ###
     problem: (id) ->
@@ -278,10 +281,27 @@ gaze.fn = gaze.prototype = {
 ### WATCHDOG ###
 gaze.extension({} , {
     id: "watchdog"
-    init: (gaze) ->
+    framecount: 0
+    watchdog: null
+
+    init: (gaze, module) ->
         time = Date.now()
+        lastcount = 0
+        lastwarn = 0
+
+        check = () ->
+            if module.framecount == lastcount and module.framecount != lastwarn
+                gaze.problem("W_DATASTALL")
+                lastwarn = module.framecount
+
+            lastcount = module.framecount
 
         gaze.onframe () ->
+            # If this was the first frame, set up watchdog
+            if not module.framecount++
+                module.watchdog = setInterval check, 1500
+
+    deinit: (gaze, module) -> clearInterval module.watchdog
 })
 
 
@@ -457,8 +477,11 @@ gaze.extension({
 
     ### Called when a new frame arrives ###
     onframe: (frame, gaze, module) ->
+        # Nothing to filter, no raw = nothing to do
+        if not frame.filtered and not frame.raw then return
+
         # Filter data here ...
-        if not frame.filtered
+        if not frame.filtered and frame.raw
             throw "Not implemented"
             frame.filtered = {}
 
@@ -518,10 +541,7 @@ gaze.extension({
         point = (pt) ->
             work_with_point()
 
-
-        # 3 (x) ->
-        # gaze.onfiltered (x) ->
-        # gaze.onfixation (x) ->
+    # Fixation or raw data?
 })
 
 
@@ -536,7 +556,9 @@ gaze.connectors = {
         socket.onerror = status
         socket.onopen = status
         socket.onclose = status
-        socket.onmessage = (evt) -> frame JSON.parse(evt.data)
+        socket.onmessage = (evt) ->
+            console.log (evt)
+            frame JSON.parse(evt.data)
 
         return {
             tracker: null
