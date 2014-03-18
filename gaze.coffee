@@ -330,6 +330,30 @@ gaze.extension({
 
     ### Converts a screen pixel position to a window position ###
     screen2window: (x, y) -> return [x, y] # Is overriden in module.init()!
+
+    ### Notify user with a bubble ###
+    notifiybubble: (string) ->
+        document = global.document
+
+        note = document.createElement "div"
+        note.style.position = "fixed"
+        note.style.top = "10px"
+        note.style.right = "50px"
+        note.style.padding = "50px"
+        note.style.background = "red"
+        note.style.opacity = "0"        
+        note.style.transition = 'opacity 0.2s'
+        note.style.borderRadius = '3px'
+        
+        note.innerHTML = """<div>""" + string + """</div>"""
+        document.body.appendChild note
+
+        setTimeout(
+            () -> 
+                note.style.opacity = "1"
+            ,1)
+
+
 }, {
     id: "browser"
 
@@ -395,6 +419,8 @@ gaze.extension({
 
     init: (gaze, module) ->
         module._gaze = gaze
+
+        document = global.document
 
         # Compute some values and get others from localstorage
         module.browser = gaze.browser()
