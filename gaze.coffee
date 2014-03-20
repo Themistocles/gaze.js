@@ -97,6 +97,9 @@ handlers.prototype = {
 
         return handle
 
+    ### Checks if there are elements in the handlers ###
+    has: () -> @_handlers.length > 0
+        
     ### Calls every handler with the given message ###
     invoke: (msg) ->
         for handler in @_handlers
@@ -219,6 +222,8 @@ gaze.fn = gaze.prototype = {
 
     ### Deinitializes this object, can be used again afterwards. ###
     deinit: () ->
+        @_tracker.deinit()
+
         for id, module of extensions
             if module.deinit then module.deinit @, module
 
@@ -271,9 +276,20 @@ gaze.fn = gaze.prototype = {
 
     ### Returns the distance of a point and a rect or two points ###
     distance: (px, py, x, y, w, h) ->
-      # TODO: Return actual distance if outside
-      if px >= x && px <= x + w && py >= y && py <= y + h then return 0
-      return 1
+        # In case we only have 2 parameters, treat as two points a = [x, y], b = [x, y]
+        
+        if not x
+            a = px; b = py;
+            return Math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 )
+
+        # In case we only have 4 parameters, treat as two points in form x1 y1, x2, y2
+        if not w 
+            x1 = px; y1 = py; x2 = x; y2 = y
+            return Math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
+
+        # TODO: Return actual distance if outside
+        if px >= x && px <= x + w && py >= y && py <= y + h then return 0
+        return 1
 }
 
 
@@ -546,6 +562,95 @@ gaze.extension({
 
 
 
+
+
+
+### FIXATION ###
+gaze.extension({
+    ### Adds a filtered listener and returns a removal handle ###
+    onfixation: (listener) ->
+        ext = @extension("fixation")
+        ext._handlers.add listener
+
+}, {
+    id: "fixation"
+    depends: ["filtered"]
+
+    radiusthreshold: 50
+    currentfixation: null
+    outliers: []
+
+    ### Creates a new fixation structure ###
+    fixationstruct: (point) ->
+        {
+                center: point
+                points: [point]
+        }
+
+    ### Called to update the current fixation ###
+    updatefixation: (gaze, point, newfixation, continuedfixation) -> 
+        if not point then return
+
+        # If we are not in a fixation, go ahead and create object        
+        if not this.currentfixation
+            this.currentfixation = this.fixationstruct(point)
+
+        currentfixation = this.currentfixation            
+
+        # Check how far away we are 
+        distance = gaze.distance(currentfixation.center, point)
+
+        # If we have an outlier ...        
+        if distance > this.radiusthreshold
+            this.outliers.push point
+
+            # Very crude fixation start detection ...
+            if this.outliers.length > 3
+                this.outliers = []
+                this.currentfixation = this.fixationstruct(point)
+
+                # And call our handler
+                newfixation this.currentfixation
+
+        else
+            currentfixation.points.push point
+
+        # And call our handler
+        continuedfixation this.currentfixation
+
+
+
+    ### Called when a new frame arrives ###
+    onframe: (frame, gaze, module) ->
+        # Nothing to filter, no raw = nothing to do
+        if not frame.filtered and not frame.raw then return
+
+        # Filter data here ...
+        if not frame.filtered and frame.raw
+            throw "Not implemented"
+            frame.filtered = {}
+
+        # And eventually convert to local coordinate system
+        f = frame.filtered
+
+        newfixation = (fixation) ->            
+            module._handlers.invoke fixation
+            frame.fixation = fixation
+
+        continuedfixation = (fixation) ->
+            frame.fixation = fixation
+
+        module.updatefixation gaze, [f.screenX, f.screenY], newfixation, continuedfixation
+
+        
+        
+    ### Initialize this module ###
+    init: (gaze, module) -> module._handlers = gaze.handlers()
+})
+
+
+
+
 ### GAZE OVER / OUT ###
 gaze.extension({
     ongazeover: (elements, listener, options) ->
@@ -695,10 +800,11 @@ gaze.connectors = {
 
                 }
             }
+            deinit: () -> socket.close()
         }
 
     "mouse": (url, status, frame) ->
-        last = null
+        last = null; timer = null
         number = 0
 
         motion = (e) -> last = e
@@ -708,16 +814,21 @@ gaze.connectors = {
                 x = last.clientX
                 y = last.clientY
 
+            wx = x + (Math.random() - 0.5) * 20
+            wy = y + (Math.random() - 0.5) * 20
+
             frame {
                 filtered: {
-                    windowX: x + (Math.random() - 0.5) * 20
-                    windowY: y + (Math.random() - 0.5) * 20
+                    windowX: wx
+                    windowY: wy
+                    screenX: wx + global.screenX
+                    screenY: wy + global.screenX                    
                     inwindow: true
                 }
             }
 
         document.addEventListener('mousemove', motion, false);
-        setInterval tick, 30
+        timer = setInterval tick, 30
 
         return {
             tracker: null
@@ -727,6 +838,7 @@ gaze.connectors = {
 
                 }
             }
+            deinit: () -> clearInterval timer            
         }
 }
 
