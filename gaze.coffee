@@ -99,7 +99,7 @@ handlers.prototype = {
 
     ### Checks if there are elements in the handlers ###
     has: () -> @_handlers.length > 0
-        
+
     ### Calls every handler with the given message ###
     invoke: (msg) ->
         for handler in @_handlers
@@ -121,6 +121,20 @@ handlers.prototype = {
     onpopulated: () ->
     onempty: () ->
 }
+
+
+
+### Vector Class ###
+vector = () ->
+    @data = []
+    return @
+
+vector.prototype = {
+    add: () ->
+    sub: () ->
+    mul: () ->
+}
+
 
 
 ### Gaze Class ###
@@ -217,6 +231,9 @@ gaze.fn = gaze.prototype = {
     problem: (id) ->
         @_onproblem.invoke problems[id] or { message: id }
 
+    ### The global object where this was bound to ###
+    global: global
+
     ### Register handler called when there was a problem ###
     onproblem: (handler) -> @_onproblem.add handler
 
@@ -254,6 +271,9 @@ gaze.fn = gaze.prototype = {
     ### Registers for a frame ###
     onframe: (handler) -> @_onframe.add handler
 
+    ### Returns a new vector ###
+    vector: () -> new vector()
+
     ### Returns the version ###
     version: () -> VERSION
 
@@ -277,13 +297,13 @@ gaze.fn = gaze.prototype = {
     ### Returns the distance of a point and a rect or two points ###
     distance: (px, py, x, y, w, h) ->
         # In case we only have 2 parameters, treat as two points a = [x, y], b = [x, y]
-        
+
         if not x
             a = px; b = py;
             return Math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 )
 
         # In case we only have 4 parameters, treat as two points in form x1 y1, x2, y2
-        if not w 
+        if not w
             x1 = px; y1 = py; x2 = x; y2 = y
             return Math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
 
@@ -357,15 +377,15 @@ gaze.extension({
         note.style.right = "50px"
         note.style.padding = "50px"
         note.style.background = "red"
-        note.style.opacity = "0"        
+        note.style.opacity = "0"
         note.style.transition = 'opacity 0.2s'
         note.style.borderRadius = '3px'
-        
+
         note.innerHTML = """<div>""" + string + """</div>"""
         document.body.appendChild note
 
         setTimeout(
-            () -> 
+            () ->
                 note.style.opacity = "1"
             ,1)
 
@@ -446,34 +466,40 @@ gaze.extension({
 
         global.document.addEventListener 'click', @click.bind(@)
 
+        # Actual value converter
+        xx = (p, x, y) -> return x
+        yy = (p, x, y) -> return x
+
+        # Pixel conversion function
+        convert = (x, y) ->
+            if not y
+                y = x[1]
+                x = x[0]
+
+            p = gaze.browserpixelratio()
+            return [xx(p, x, y), yy(p, x, y)]
+
         # Sets the appropriate screen2window function based on browser
         if module.browser == "chrome"
-            gaze.screen2window = (x, y) ->
-                p = gaze.browserpixelratio()
-                wx = (x - global.screenX + module.windowoffsetx) / p
-                wy = (y - global.screenY + module.windowoffsety) / p
-                return [wx, wy]
+                xx = (p, x, y) -> (x - global.screenX + module.windowoffsetx) / p
+                yy = (p, x, y) -> (y - global.screenY + module.windowoffsety) / p
 
         if module.browser == "ie"
             gaze.screen2window = (x, y) ->
-                p = gaze.browserpixelratio()
-                wx = (x - global.screenX * p + module.windowoffsetx) / p
-                wy = (y - global.screenY * p + module.windowoffsety) / p
-                return [wx, wy]
+                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffsetx) / p
+                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffsety) / p
 
         if module.browser == "safari" #TODO: safari currently wrong, measure again
             gaze.screen2window = (x, y) ->
-                p = gaze.browserpixelratio()
-                wx = (x - global.screenX + module.windowoffsetx) / p
-                wy = (y - global.screenY + module.windowoffsety) / p
-                return [wx, wy]
+                xx = (p, x, y) -> (x - global.screenX + module.windowoffsetx) / p
+                yy = (p, x, y) -> (y - global.screenY + module.windowoffsety) / p
 
         if module.browser == "firefox"
             gaze.screen2window = (x, y) ->
-                p = gaze.browserpixelratio()
-                wx = (x - global.screenX * p + module.windowoffsetx) / p
-                wy = (y - global.screenY * p + module.windowoffsety) / p
-                return [wx, wy]
+                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffsetx) / p
+                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffsety) / p
+
+        gaze.screen2window = convert
 })
 
 
@@ -563,18 +589,15 @@ gaze.extension({
 
 
 
-
-
 ### FIXATION ###
 gaze.extension({
     ### Adds a filtered listener and returns a removal handle ###
     onfixation: (listener) ->
         ext = @extension("fixation")
         ext._handlers.add listener
-
 }, {
     id: "fixation"
-    depends: ["filtered"]
+    depends: ["filtered", "browser"]
 
     radiusthreshold: 50
     currentfixation: null
@@ -583,24 +606,24 @@ gaze.extension({
     ### Creates a new fixation structure ###
     fixationstruct: (point) ->
         {
-                center: point
-                points: [point]
+                _center: point
+                _points: [point]
         }
 
     ### Called to update the current fixation ###
-    updatefixation: (gaze, point, newfixation, continuedfixation) -> 
+    updatefixation: (gaze, point, newfixation, continuedfixation) ->
         if not point then return
 
-        # If we are not in a fixation, go ahead and create object        
+        # If we are not in a fixation, go ahead and create object
         if not this.currentfixation
             this.currentfixation = this.fixationstruct(point)
 
-        currentfixation = this.currentfixation            
+        currentfixation = this.currentfixation
 
-        # Check how far away we are 
-        distance = gaze.distance(currentfixation.center, point)
+        # Check how far away we are
+        distance = gaze.distance(currentfixation._center, point)
 
-        # If we have an outlier ...        
+        # If we have an outlier ...
         if distance > this.radiusthreshold
             this.outliers.push point
 
@@ -613,7 +636,7 @@ gaze.extension({
                 newfixation this.currentfixation
 
         else
-            currentfixation.points.push point
+            currentfixation._points.push point
 
         # And call our handler
         continuedfixation this.currentfixation
@@ -633,17 +656,26 @@ gaze.extension({
         # And eventually convert to local coordinate system
         f = frame.filtered
 
-        newfixation = (fixation) ->            
-            module._handlers.invoke fixation
+        newfixation = (fixation) ->
             frame.fixation = fixation
+
+            fixation.screenX = fixation._center[0]
+            fixation.screenY = fixation._center[1]
+
+            wd = gaze.screen2window(fixation._center)
+
+            fixation.windowX = wd[0]
+            fixation.windowY = wd[1]
+
+            module._handlers.invoke fixation
 
         continuedfixation = (fixation) ->
             frame.fixation = fixation
 
         module.updatefixation gaze, [f.screenX, f.screenY], newfixation, continuedfixation
 
-        
-        
+
+
     ### Initialize this module ###
     init: (gaze, module) -> module._handlers = gaze.handlers()
 })
@@ -658,10 +690,10 @@ gaze.extension({
 
         if typeof elements == "string"
             elements = @_document.querySelectorAll elements
-        
+
         if not elements.length # Our test to see if it is an array
             elements = [elements]
-    
+
         ext._handlers.add [elements, listener, options]
 }, {
     id: "gazeover"
@@ -682,7 +714,7 @@ gaze.extension({
                 callback = f[1]
 
                 for e in elements
-                    # Ignore elements removed from tree 
+                    # Ignore elements removed from tree
                     if not document.body.contains(e) then continue
 
                     r = e.getBoundingClientRect()
@@ -713,7 +745,7 @@ gaze.extension({
 
         if typeof elements == "string"
             elements = @_document.querySelectorAll elements
-        
+
         if not elements.length # Our test to see if it is an array
             elements = [elements]
 
@@ -722,7 +754,7 @@ gaze.extension({
             dwellthreshold: options
             dwelldecay: 100
         }
-    
+
         ext._handlers.add [elements, listener, _options]
 }, {
     id: "dwell"
@@ -744,7 +776,7 @@ gaze.extension({
                 options = f[2]
 
                 for e in elements
-                    # Ignore elements removed from tree 
+                    # Ignore elements removed from tree
                     if not document.body.contains(e) then continue
 
                     # Initialize values not present
@@ -822,7 +854,7 @@ gaze.connectors = {
                     windowX: wx
                     windowY: wy
                     screenX: wx + global.screenX
-                    screenY: wy + global.screenX                    
+                    screenY: wy + global.screenX
                     inwindow: true
                 }
             }
@@ -838,7 +870,7 @@ gaze.connectors = {
 
                 }
             }
-            deinit: () -> clearInterval timer            
+            deinit: () -> clearInterval timer
         }
 }
 
@@ -846,6 +878,7 @@ gaze.connectors = {
 ### Set global object ###
 global.gaze = new gaze(global)
 global.gaze.connectors = gaze.connectors
+
 
 
 
