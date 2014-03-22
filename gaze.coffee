@@ -2,7 +2,7 @@
 
 gaze.js
 
-(c) Ralf Biedert, 2014
+(c) Ralf Biedert, 2014 - http://gaze.io
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
