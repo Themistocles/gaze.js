@@ -387,6 +387,7 @@ gaze.extension({
         #note.style.transition = 'opacity 0.3s, right 0.3s'
         note.style.border = '1px solid #555'
         note.style.borderRadius = '5px'
+        note.style.zIndex = "99999999"
 
         links = ""
 
