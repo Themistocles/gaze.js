@@ -298,12 +298,12 @@ gaze.fn = gaze.prototype = {
     distance: (px, py, x, y, w, h) ->
         # In case we only have 2 parameters, treat as two points a = [x, y], b = [x, y]
 
-        if not x
+        if typeof x == "undefined"
             a = px; b = py;
             return Math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 )
 
         # In case we only have 4 parameters, treat as two points in form x1 y1, x2, y2
-        if not w
+        if typeof w == "undefined"
             x1 = px; y1 = py; x2 = x; y2 = y
             return Math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
 
@@ -472,7 +472,7 @@ gaze.extension({
 
         # Pixel conversion function
         convert = (x, y) ->
-            if not y
+            if typeof y == "undefined"
                 y = x[1]
                 x = x[0]
 
@@ -606,8 +606,8 @@ gaze.extension({
     ### Creates a new fixation structure ###
     fixationstruct: (point) ->
         {
-                _center: point
-                _points: [point]
+            _center: point
+            _points: [point]
         }
 
     ### Called to update the current fixation ###
@@ -622,10 +622,12 @@ gaze.extension({
 
         # Check how far away we are
         distance = gaze.distance(currentfixation._center, point)
+        if isNaN distance then distance = 999999
 
         # If we have an outlier ...
         if distance > this.radiusthreshold
             this.outliers.push point
+
 
             # Very crude fixation start detection ...
             if this.outliers.length > 3

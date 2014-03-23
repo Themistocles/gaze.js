@@ -1,6 +1,6 @@
 ###
 
-gaze.xtra.js 
+gaze.xtra.js
 
 (c) Ralf Biedert, 2014 - http://gaze.io
 All rights reserved.
