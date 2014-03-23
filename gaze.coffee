@@ -229,7 +229,9 @@ gaze.fn = gaze.prototype = {
 
     ### Informs registered listeners about a problem ###
     problem: (id) ->
-        @_onproblem.invoke problems[id] or { message: id }
+        problem = problems[id] or { message: id }
+        problem.id = id
+        @_onproblem.invoke problem
 
     ### The global object where this was bound to ###
     global: global
@@ -368,25 +370,47 @@ gaze.extension({
     screen2window: (x, y) -> return [x, y] # Is overriden in module.init()!
 
     ### Notify user with a bubble ###
-    notifiybubble: (string) ->
+    notifiybubble: (string, config) ->
         document = global.document
 
         note = document.createElement "div"
         note.style.position = "fixed"
         note.style.top = "10px"
-        note.style.right = "50px"
-        note.style.padding = "50px"
-        note.style.background = "red"
-        note.style.opacity = "0"
-        note.style.transition = 'opacity 0.2s'
-        note.style.borderRadius = '3px'
+        note.style.right = "-250px"
+        note.style.padding = "20px"
+        note.style.color = "white"
+        note.style.background = "#333"
+        note.style.width = "200px"
+        note.style.fontFamily = "Helvetica"
+        note.style.fontSize = "10pt"
+        note.style.opacity = "1"
+        #note.style.transition = 'opacity 0.3s, right 0.3s'
+        note.style.border = '1px solid #555'
+        note.style.borderRadius = '5px'
 
-        note.innerHTML = """<div>""" + string + """</div>"""
+        links = ""
+
+        if config and config.links
+            links = "<br/><br/>"
+            for link in config.links
+                links += """<a style='color:#4da6ff; text-decoration: none;'
+                    onclick="window.open('""" + link.url + """', 'helper')"
+                    href=''>&raquo; """ + link.text + "</a><br/>"
+
+        note.innerHTML = """
+        <div onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
+            <img style='position:absolute; top: 10px; left:10px;
+                padding-right:5px; padding-bottom:3px;' width='20px' src='http://downloads.gaze.io/api/logo.mini.png'>
+            <div style='position:relative; left:18px; top:-8px; padding-right:10px;'>
+            """ + string + links +  """
+            </div>
+        </div>"""
         document.body.appendChild note
 
         setTimeout(
             () ->
                 note.style.opacity = "1"
+                note.style.right = "50px"
             ,1)
 
 
@@ -485,22 +509,65 @@ gaze.extension({
                 yy = (p, x, y) -> (y - global.screenY + module.windowoffsety) / p
 
         if module.browser == "ie"
-            gaze.screen2window = (x, y) ->
                 xx = (p, x, y) -> (x - global.screenX * p + module.windowoffsetx) / p
                 yy = (p, x, y) -> (y - global.screenY * p + module.windowoffsety) / p
 
         if module.browser == "safari" #TODO: safari currently wrong, measure again
-            gaze.screen2window = (x, y) ->
                 xx = (p, x, y) -> (x - global.screenX + module.windowoffsetx) / p
                 yy = (p, x, y) -> (y - global.screenY + module.windowoffsety) / p
 
         if module.browser == "firefox"
-            gaze.screen2window = (x, y) ->
                 xx = (p, x, y) -> (x - global.screenX * p + module.windowoffsetx) / p
                 yy = (p, x, y) -> (y - global.screenY * p + module.windowoffsety) / p
 
         gaze.screen2window = convert
 })
+
+
+
+
+
+### USERHELP ###
+gaze.extension({} , {
+    id: "userhelp"
+
+    init: (gaze, module) ->
+        module.remove = gaze.onproblem (problem) ->
+            # Special handling for I_MOUSEFALLBACK
+            if problem.id == "I_MOUSEFALLBACK"
+                str = "No eye tracker was found on your system. We will fall back to mouse emulation."
+
+                config = {
+                    links: [
+                        {
+                            url: "http://localhost:8000/faq/#I_MOUSEFALLBACK",
+                            text: "Have a tracker or need help?"
+                        }
+                    ]
+                }
+
+                gaze.notifiybubble(str, config)
+
+            else
+                # Assemble generic message
+                config = {
+                    links: [
+                        {
+                            url: "http://localhost:8000/faq/#" + problem.id,
+                            text: "Get more help."
+                        }
+                    ]
+                }
+
+                gaze.notifiybubble(problem.message, config)
+
+
+
+    deinit: (gaze, module) -> module.remove.remove()
+})
+
+
+
 
 
 
