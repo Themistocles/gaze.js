@@ -540,7 +540,7 @@ gaze.extension({} , {
                 config = {
                     links: [
                         {
-                            url: "http://localhost:8000/faq/#I_MOUSEFALLBACK",
+                            url: "http://gaze.io/faq/#I_MOUSEFALLBACK",
                             text: "Have a tracker or need help?"
                         }
                     ]
@@ -553,7 +553,7 @@ gaze.extension({} , {
                 config = {
                     links: [
                         {
-                            url: "http://localhost:8000/faq/#" + problem.id,
+                            url: "http://gaze.io/faq/#" + problem.id,
                             text: "Get more help."
                         }
                     ]
