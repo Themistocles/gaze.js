@@ -129,14 +129,18 @@ handlers.prototype = {
 vector = (x, y, z) ->
     @isvector = true
 
-    # Initialization logic
+    # Initialize empty
     if not x?
         @data = []
+
+    # Initialize with length or array
     else if not y?
         if x.length?
             @data = x.slice(0)
         else
-            @data = [x]
+            @data = new Array(x)
+
+    # Initialize with x and y and / or z
     else if not z?
         @data = [x, y]
     else
@@ -144,11 +148,50 @@ vector = (x, y, z) ->
 
     return @
 
+
 vector.prototype = {
-    ### Adds another vector ###
-    add: (v) -> rval = new vector(@)
-    sub: () ->
-    mul: () ->
+    ### Adds a number, vector or array ###
+    add: (v) ->
+        if typeof v == "number"
+            @data[i] += v for dish, i in @data
+            return @
+
+        d = if v.isvector then v.data else v
+        @data[i] += d[i] for e, i in d
+        return @
+
+
+
+    ### Subtracts a number, vector or array ###
+    sub: (v) ->
+        if typeof v == "number"
+            @data[i] -= v for dish, i in @data
+            return @
+
+        d = if v.isvector then v.data else v
+        @data[i] -= d[i] for e, i in d
+        return @
+
+
+    ### Multiplies elements with a number, or element-wise ###
+    mul: (v) ->
+        if typeof v == "number"
+            @data[i] *= v for e, i in @data
+            return @
+
+        d = if v.isvector then v.data else v
+        @data[i] *= d[i] for e, i in d
+        return @
+
+
+    ### Sets all elements to random ###
+    rand: () -> @data[i] = Math.random() for e, i in @data; return @
+
+    ### Sets all elements to a given value ###
+    set: (c) -> @data[i] = c for e, i in @data; return @
+
+    ### Sets all elements to 0 ###
+    zeros: () -> @set(0); return @
 
     ### Returns n-dimensional distance ###
     distance: () ->
@@ -158,7 +201,7 @@ vector.prototype = {
 
     ### Misc helpers ###
     dim: () -> data.length
-    get: (i) -> @data[i]
+    get: (i) -> if i? then @data[i] else @data
     x: () -> @data[0]
     y: () -> @data[1]
     z: () -> @data[2]
@@ -311,6 +354,10 @@ gaze.fn = gaze.prototype = {
     ### Returns the version ###
     version: () -> VERSION
 
+    ### Returns true if gaze handling should be performed (e.g., window in
+    focus / foreground) ###
+    isactive: () -> true
+
     ### Sets or returns an extension ###
     extension: (fns, module) ->
         if not fns and not module
@@ -398,8 +445,36 @@ gaze.extension({
         return 1
 
 
+    ### Given a frame part with "screen" coordinates, update browser /
+    geometry information in it  ###
+    updategeometry: (part) ->
+        # Compute variables not yet given in filtered
+        if not part.screen then return
+
+        part.screenX = part.screen[0]
+        part.screenY = part.screen[1]
+
+        if not part.window
+            part.window = @screen2window(part.screen[0], part.screen[1])
+            part.windowX = part.window[0]
+            part.windowY = part.window[1]
+
+        if not part.document
+            part.document = [part.window[0] + global.pageXOffset,
+                             part.window[1] + global.pageYOffset]
+
+            part.documentX = part.document[0]
+            part.documentY = part.document[1]
+
+        if not part.windowdist
+            part.windowdist = @distance(part.screen[0], part.screen[1], global.screenX, global.screenY, global.outerWidth, global.outerHeight) == 0
+
+
     ### Converts a screen pixel position to a window position ###
     screen2window: (x, y) -> return [x, y] # Is overriden in module.init()!
+
+    ### Override the isactive method ###
+    isactive: () -> global.document.hasFocus()
 
     ### Notify user with a bubble ###
     notifiybubble: (string, config) ->
@@ -460,8 +535,7 @@ gaze.extension({
 
     browser: "unknown"
     desktopzoom: 1.0
-    windowoffsetx: 0
-    windowoffsety: 0
+    windowoffset: [0, 0]
 
     ### Click handler to translate coordinates ###
     click: (evt) ->
@@ -491,8 +565,7 @@ gaze.extension({
       # DX now has the offsets in of the client area start relative to the
       # reported window.screenX and window.screenY positions in physical screen pixels
 
-      @windowoffsetx = dx
-      @windowoffsety = dy
+      @windowoffset = [dx, dy]
 
       localStorage.setItem("_gaze_windowoffsetx", dx)
       localStorage.setItem("_gaze_windowoffsety", dy)
@@ -518,8 +591,8 @@ gaze.extension({
         # Compute some values and get others from localstorage
         module.browser = gaze.browser()
         module.desktopzoom = parseFloat(localStorage.getItem("_gaze_desktopzoom")) or 1.0
-        module.windowoffsetx = parseInt(localStorage.getItem("_gaze_windowoffsetx")) or 0
-        module.windowoffsety = parseInt(localStorage.getItem("_gaze_windowoffsety")) or 0
+        module.windowoffset[0] = parseInt(localStorage.getItem("_gaze_windowoffsetx")) or 0
+        module.windowoffset[1] = parseInt(localStorage.getItem("_gaze_windowoffsety")) or 0
 
         global.document.addEventListener 'click', @click.bind(@)
 
@@ -529,6 +602,9 @@ gaze.extension({
 
         # Pixel conversion function
         convert = (x, y) ->
+            if typeof x == "undefined"
+                return [x, x]
+
             if typeof y == "undefined"
                 y = x[1]
                 x = x[0]
@@ -620,7 +696,7 @@ gaze.extension({
 
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
-            if not global.document.hasFocus() then return
+            if not gaze.isactive() then return
             module._handlers.invoke packet.raw
 
         # Called when the first handler was added or removed
@@ -654,21 +730,7 @@ gaze.extension({
             frame.filtered = {}
 
         # And eventually convert to local coordinate system
-        f = frame.filtered
-
-        # See if we don't have already window coordintes
-        if not f.windowX or not f.windowY
-            p = gaze.screen2window(f.screenX, f.screenY)
-
-            # Compute derived element for filtered data
-            f.windowX = p[0]
-            f.windowY = p[1]
-
-        if not f.inwindow
-            f.inwindow = gaze.distance(f.screenX, f.screenX, global.screenX, global.screenY, global.outerWidth, global.outerHeight) == 0
-
-        f.documentX = f.windowX + global.pageXOffset
-        f.documentY = f.windowY + global.pageYOffset
+        gaze.updategeometry frame.filtered
 
 
     ### Initialize this module ###
@@ -678,7 +740,7 @@ gaze.extension({
 
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
-            if not global.document.hasFocus() then return
+            if not gaze.isactive() then return
             module._handlers.invoke packet.filtered
 
         # Called when the first handler was added or removed
@@ -711,7 +773,7 @@ gaze.extension({
         }
 
     ### Called to update the current fixation ###
-    updatefixation: (gaze, point, newfixation, continuedfixation) ->
+    computefixation: (gaze, point, newfixation, continuedfixation) ->
         if not point then return
 
         # If we are not in a fixation, go ahead and create object
@@ -727,7 +789,6 @@ gaze.extension({
         # If we have an outlier ...
         if distance > this.radiusthreshold
             this.outliers.push point
-
 
             # Very crude fixation start detection ...
             if this.outliers.length > 3
@@ -748,33 +809,25 @@ gaze.extension({
     ### Called when a new frame arrives ###
     onframe: (frame, gaze, module) ->
         # Nothing to filter, no raw = nothing to do
-        if not frame.filtered and not frame.raw then return
-
-        # Filter data here ...
-        if not frame.filtered and frame.raw
-            throw "Not implemented"
-            frame.filtered = {}
-
-        # And eventually convert to local coordinate system
-        f = frame.filtered
+        if not frame.filtered then return
 
         newfixation = (fixation) ->
+
             frame.fixation = fixation
+            frame.fixation.screen = [fixation._center[0], fixation._center[1]]
 
-            fixation.screenX = fixation._center[0]
-            fixation.screenY = fixation._center[1]
+            gaze.updategeometry fixation
 
-            wd = gaze.screen2window(fixation._center)
-
-            fixation.windowX = wd[0]
-            fixation.windowY = wd[1]
-
+            # Eventually call handlers
             module._handlers.invoke fixation
 
         continuedfixation = (fixation) ->
+            # Called when a fixation was continued
             frame.fixation = fixation
 
-        module.updatefixation gaze, [f.screenX, f.screenY], newfixation, continuedfixation
+
+        # Call our handler function
+        module.computefixation gaze, frame.filtered, newfixation, continuedfixation
 
 
 
@@ -808,7 +861,7 @@ gaze.extension({
 
         func = (p) ->
             # In case we don't have the focus, we don't do anything
-            if not global.document.hasFocus() then return
+            if not gaze.isactive() then return
 
             # Every thing that was registered with on... will be treated individually
             module._handlers.each (f) ->
@@ -820,7 +873,7 @@ gaze.extension({
                     if not document.body.contains(e) then continue
 
                     r = e.getBoundingClientRect()
-                    dist = gaze.distance p.windowX, p.windowY, r.left, r.top, r.width, r.height
+                    dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
 
                     # Check if we hit the element
                     if dist == 0 and not e._gazeover
@@ -869,7 +922,7 @@ gaze.extension({
 
         func = (p) ->
             # In case we don't have the focus, we don't do anything
-            if not global.document.hasFocus() then return
+            if not gaze.isactive() then return
 
             # Every thing that was registered with on... will be treated individually
             module._handlers.each (f) ->
@@ -944,20 +997,39 @@ gaze.connectors = {
         motion = (e) -> last = e
         tick = () ->
 
-            if last
-                x = last.clientX
-                y = last.clientY
-
-            wx = x + (Math.random() - 0.5) * 20
-            wy = y + (Math.random() - 0.5) * 20
+            w = if last then new vector(last.clientX, last.clientY) else new vector(2).zeros()
+            w.add(new vector(2).rand().add(-0.5).mul(20))
 
             frame {
+                # Single latest raw event
+                raw: {
+                    left: {
+                        screen: [0, 0]
+                        valid: true
+                        pupil: 0.0
+                    }
+
+                    right: {
+                        screen: [0, 0]
+                        valid: true
+                        pupil: 0.0
+                    }
+
+                    timestamp: 0
+                }
+
+                # All raw events (including current) that have been recorded
+                # since the last frame, but were not transmitted due to
+                # FPS limits.
+                rawhist: [
+                    {}, {},
+                ]
+
+                # Current pre-filtered data
                 filtered: {
-                    windowX: wx
-                    windowY: wy
-                    screenX: wx + global.screenX
-                    screenY: wy + global.screenX
-                    inwindow: true
+                    window: [w.x(), w.y()]
+                    screen: [w.x() + global.screenX, w.y() + global.screenX]
+                    windowdist: 0
                 }
             }
 
