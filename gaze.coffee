@@ -125,14 +125,46 @@ handlers.prototype = {
 
 
 ### Vector Class ###
-vector = () ->
-    @data = []
+### Doing math inline style for highest performance. ###
+vector = (x, y, z) ->
+    @isvector = true
+
+    # Initialization logic
+    if not x?
+        @data = []
+    else if not y?
+        if x.length?
+            @data = x.slice(0)
+        else
+            @data = [x]
+    else if not z?
+        @data = [x, y]
+    else
+        @data = [x, y, z]
+
     return @
 
 vector.prototype = {
-    add: () ->
+    ### Adds another vector ###
+    add: (v) -> rval = new vector(@)
     sub: () ->
     mul: () ->
+
+    ### Returns n-dimensional distance ###
+    distance: () ->
+        rval = 0
+        rval += (value * value) for value in @data
+        return Math.sqrt(rval)
+
+    ### Misc helpers ###
+    dim: () -> data.length
+    get: (i) -> @data[i]
+    x: () -> @data[0]
+    y: () -> @data[1]
+    z: () -> @data[2]
+
+    ### Clones this vector ###
+    clone: () -> return new vector(@data)
 }
 
 
@@ -274,7 +306,7 @@ gaze.fn = gaze.prototype = {
     onframe: (handler) -> @_onframe.add handler
 
     ### Returns a new vector ###
-    vector: () -> new vector()
+    vector: (x, y, z) -> new vector(x, y, z)
 
     ### Returns the version ###
     version: () -> VERSION
@@ -300,12 +332,12 @@ gaze.fn = gaze.prototype = {
     distance: (px, py, x, y, w, h) ->
         # In case we only have 2 parameters, treat as two points a = [x, y], b = [x, y]
 
-        if typeof x == "undefined"
+        if not x?
             a = px; b = py;
             return Math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 )
 
         # In case we only have 4 parameters, treat as two points in form x1 y1, x2, y2
-        if typeof w == "undefined"
+        if not w?
             x1 = px; y1 = py; x2 = x; y2 = y
             return Math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
 
