@@ -18,21 +18,9 @@
 
     <!-- Include our actual library and tests-->
     <script src="../gaze.js"></script>
-    <script type="text/javascript">
-        var g1 = gaze
-    </script>
 
-    <script type="text/javascript">        
-        g1.extension({xxx:function() {return 666;}})
-        g1.onproblem(function (x) {
-            console.log(x)
-        })
-        g1.init()
-        console.log(g1.extension())
-        console.log(g1.browser())
-        console.log(g1.browserpixelratio())
-        console.log(g1.screen2window(100, 100))
-    </script>
+    <script src="test.common.js"></script>
+    <script src="test.vectors.js"></script>
 
 </body>
 </html>
