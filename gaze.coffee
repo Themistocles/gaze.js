@@ -456,15 +456,18 @@ gaze.extension({
 
         if not part.window
             part.window = @screen2window(part.screen[0], part.screen[1])
-            part.windowX = part.window[0]
-            part.windowY = part.window[1]
+
+        part.windowX = part.window[0]
+        part.windowY = part.window[1]
+
 
         if not part.document
             part.document = [part.window[0] + global.pageXOffset,
                              part.window[1] + global.pageYOffset]
 
-            part.documentX = part.document[0]
-            part.documentY = part.document[1]
+        part.documentX = part.document[0]
+        part.documentY = part.document[1]
+
 
         if not part.windowdist
             part.windowdist = @distance(part.screen[0], part.screen[1], global.screenX, global.screenY, global.outerWidth, global.outerHeight) == 0
@@ -812,14 +815,13 @@ gaze.extension({
         if not frame.filtered then return
 
         newfixation = (fixation) ->
-
             frame.fixation = fixation
             frame.fixation.screen = [fixation._center[0], fixation._center[1]]
 
-            gaze.updategeometry fixation
+            gaze.updategeometry frame.fixation
 
             # Eventually call handlers
-            module._handlers.invoke fixation
+            module._handlers.invoke frame.fixation
 
         continuedfixation = (fixation) ->
             # Called when a fixation was continued
@@ -827,7 +829,7 @@ gaze.extension({
 
 
         # Call our handler function
-        module.computefixation gaze, frame.filtered, newfixation, continuedfixation
+        module.computefixation gaze, frame.filtered.screen, newfixation, continuedfixation
 
 
 

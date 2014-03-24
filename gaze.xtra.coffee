@@ -57,7 +57,7 @@ gaze.extension({
 
         func = (fixation) ->
             # In case we don't have the focus, we don't do anything
-            if not gaze.global.document.hasFocus() then return
+            if not gaze.isactive() then return
 
             lastfixations.push fixation
 
