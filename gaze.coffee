@@ -454,6 +454,7 @@ gaze.extension({
         part.screenX = part.screen[0]
         part.screenY = part.screen[1]
 
+
         if not part.window
             part.window = @screen2window(part.screen[0], part.screen[1])
 
@@ -617,20 +618,20 @@ gaze.extension({
 
         # Sets the appropriate screen2window function based on browser
         if module.browser == "chrome"
-                xx = (p, x, y) -> (x - global.screenX + module.windowoffsetx) / p
-                yy = (p, x, y) -> (y - global.screenY + module.windowoffsety) / p
+                xx = (p, x, y) -> (x - global.screenX + module.windowoffset[0]) / p
+                yy = (p, x, y) -> (y - global.screenY + module.windowoffset[1]) / p
 
         if module.browser == "ie"
-                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffsetx) / p
-                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffsety) / p
+                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffset[0]) / p
+                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffset[1]) / p
 
         if module.browser == "safari" #TODO: safari currently wrong, measure again
-                xx = (p, x, y) -> (x - global.screenX + module.windowoffsetx) / p
-                yy = (p, x, y) -> (y - global.screenY + module.windowoffsety) / p
+                xx = (p, x, y) -> (x - global.screenX + module.windowoffset[0]) / p
+                yy = (p, x, y) -> (y - global.screenY + module.windowoffset[1]) / p
 
         if module.browser == "firefox"
-                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffsetx) / p
-                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffsety) / p
+                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffset[0]) / p
+                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffset[1]) / p
 
         gaze.screen2window = convert
 })
@@ -734,6 +735,7 @@ gaze.extension({
 
         # And eventually convert to local coordinate system
         gaze.updategeometry frame.filtered
+
 
 
     ### Initialize this module ###
@@ -966,6 +968,17 @@ gaze.extension({
         module._handlers.onpopulated = () -> removal = gaze.onfiltered func
         module._handlers.onempty = () -> removal.remove()
 })
+
+
+
+
+
+### TRACKER MOUSE ###
+gaze.extension({} , {
+    id: "tracker.mouse"
+
+})
+
 
 
 
