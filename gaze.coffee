@@ -581,10 +581,12 @@ gaze.extension({
         if not frame.screen then return
         if not frame.screen.scaletologic then return
 
-        module.desktopzoom = 1.0 / frame.screen.scaletologic
+        # Update local desktop zoom if changed
+        if module.desktopzoom != 1.0 / frame.screen.scaletologic
+            module.desktopzoom = 1.0 / frame.screen.scaletologic
 
-        # Not sure if we should save that often ...
-        localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
+            # And set variable
+            localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
 
 
     init: (gaze, module) ->
