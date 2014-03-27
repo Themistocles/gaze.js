@@ -801,6 +801,8 @@ gaze.extension({
             if this.outliers.length > 3
                 this.outliers = []
                 this.currentfixation = this.fixationstruct(point)
+                this.currentfixation.type = "start"
+
 
                 # And call our handler
                 newfixation this.currentfixation
@@ -809,6 +811,7 @@ gaze.extension({
             currentfixation._points.push point
 
         # And call our handler
+        this.currentfixation.type = "continue"
         continuedfixation this.currentfixation
 
 
@@ -830,6 +833,8 @@ gaze.extension({
         continuedfixation = (fixation) ->
             # Called when a fixation was continued
             frame.fixation = fixation
+
+
 
 
         # Call our handler function
