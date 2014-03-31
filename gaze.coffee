@@ -957,8 +957,6 @@ gaze.extension({
             # Get the scale factor since the user might have zoomed in or out
             scale = gaze.browserpixelratio()
 
-            console.log scale
-
             # Every thing that was registered with on... will be treated individually
             module._handlers.each (f) ->
                 elements = f[0]
