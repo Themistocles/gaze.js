@@ -358,24 +358,8 @@ gaze.fn = gaze.prototype = {
     focus / foreground) ###
     isactive: () -> true
 
-    ### Sets or returns an extension ###
-    extension: (fns, module) ->
-        if not fns and not module
-            return extensions
 
-        if typeof fns == "string"
-            return extensions[fns]
-
-        gaze.extension(fns, module)
-
-
-    ### Removes this gaze object again from global, restores the previous
-    one and return this. ###
-    noconflict: (x) ->
-        @global.gaze = _gaze
-        return this
-
-    ### Returns the distance of a point and a rect or two points ###
+    ### Returns the distance of a point and a rect or two points. ###
     distance: (x, y, rx, ry, rw, rh) ->
         # In case we only have 2 parameters, treat as two points a = [x, y], b = [x, y]
 
@@ -412,6 +396,25 @@ gaze.fn = gaze.prototype = {
                 return 0.0
 
         throw "This should never happen."
+
+
+    ### Sets or returns an extension ###
+    extension: (fns, module) ->
+        if not fns and not module
+            return extensions
+
+        if typeof fns == "string"
+            return extensions[fns]
+
+        gaze.extension(fns, module)
+
+
+    ### Removes this gaze object again from global, restores the previous
+    one and return this. ###
+    noconflict: (x) ->
+        @global.gaze = _gaze
+        return this
+
 }
 
 
@@ -512,6 +515,8 @@ gaze.extension({
 
     ### Override the isactive method ###
     isactive: () -> global.document.hasFocus()
+
+
 
     ### Notify user with a bubble ###
     notifiybubble: (string, config) ->
@@ -896,8 +901,9 @@ gaze.extension({
         # Construct defaults
         if not options?
             options = {
-                radiusover: 0
-                radiusout: 15
+                radiusover: 0   # gaze has to be within this many pixel from the edge to trigger "over"
+                radiusout: 15 # gaze has to be outside this many pixel from the edge to trigger "out"
+                continueover: false # should continue to send "over" messages while inside every frame?
             }
 
         # Convert radius to over and out
@@ -907,7 +913,8 @@ gaze.extension({
 
         # Make sure we actually have all properties we need
         if not options.radiusout? then options.radiusout = 0
-        if not options.radiusover? then options.radiusover = 0
+        if not options.radiusover? then options.radiusover = 15
+        if not options.continueover? then options.continueover = false
 
 
         ext._handlers.add [elements, listener, options]
@@ -924,6 +931,9 @@ gaze.extension({
             # In case we don't have the focus, we don't do anything
             if not gaze.isactive() then return
 
+            # Get the scale factor since the user might have zoomed in or out
+            scale = gaze.browserpixelratio()
+
             # Every thing that was registered with on... will be treated individually
             module._handlers.each (f) ->
                 elements = f[0]
@@ -938,12 +948,12 @@ gaze.extension({
                     dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
 
                     # Check if we hit the element
-                    if dist <= options.radiusover and not e._gazeover
-                        callback {type:"over", element: e}
+                    if dist <= options.radiusover / scale and (not e._gazeover or options.continueover)
+                        callback {type:"over", element: e, options: options}
                         e._gazeover = true
 
-                    if dist > options.radiusout and e._gazeover
-                        callback {type:"out", element: e}
+                    if dist > options.radiusout / scale and e._gazeover
+                        callback {type:"out", element: e, options: options}
                         e._gazeover = false
 
 
@@ -975,7 +985,7 @@ gaze.extension({
         ext._handlers.add [elements, listener, _options]
 }, {
     id: "dwell"
-    depends: ["filtered"]
+    depends: ["gazeover"]
 
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
