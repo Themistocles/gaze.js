@@ -899,12 +899,8 @@ gaze.extension({
             elements = [elements]
 
         # Construct defaults
-        if not options?
-            options = {
-                radiusover: 0   # gaze has to be within this many pixel from the edge to trigger "over"
-                radiusout: 15 # gaze has to be outside this many pixel from the edge to trigger "out"
-                continueover: false # should continue to send "over" messages while inside every frame?
-            }
+        if not options? then options = { }
+        if not typeof options == "object" then throw "If third parameter is given to ongazeover, it needs to be a map."
 
         # Convert radius to over and out
         if options.radius
@@ -912,10 +908,9 @@ gaze.extension({
             options.radiusout = options.radius + 15
 
         # Make sure we actually have all properties we need
-        if not options.radiusout? then options.radiusout = 0
-        if not options.radiusover? then options.radiusover = 15
-        if not options.continueover? then options.continueover = false
-
+        if not options.radiusout? then options.radiusout = 0  # gaze has to be within this many pixel from the edge to trigger "over"
+        if not options.radiusover? then options.radiusover = 15 # gaze has to be outside this many pixel from the edge to trigger "out"
+        if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
 
         ext._handlers.add [elements, listener, options]
 }, {
@@ -941,6 +936,7 @@ gaze.extension({
                 options = f[2]
 
                 for e in elements
+
                     # Ignore elements removed from tree
                     if not document.body.contains(e) then continue
 
@@ -970,71 +966,44 @@ gaze.extension({
     ondwell: (elements, listener, options) ->
         ext = @extension("dwell")
 
-        if typeof elements == "string"
-            elements = @_document.querySelectorAll elements
+        if not options? then options = {}
 
-        if not elements.length # Our test to see if it is an array
-            elements = [elements]
+        if typeof options == "number"
+            number = options
+            options = {}
+            options.dwellthreshold = number
 
+        if not options.dwellthreshold? then options.dwellthreshold = 500 # The dwell time to activate
+        if not options.dwelldecay? then options.dwelldecay = 100 # The decay amount every frame user is not there
 
-        _options = {
-            dwellthreshold: options
-            dwelldecay: 100
-        }
+        options._dwelllistener = listener
 
-        ext._handlers.add [elements, listener, _options]
+        @ongazeover(elements, ext.dwellhandler, options)
 }, {
     id: "dwell"
     depends: ["gazeover"]
 
-    init: (gaze, module) ->
-        module._handlers = gaze.handlers()
-        document = gaze.global.document
-        removal = null
+    dwellhandler: (event) ->
+        element = event.element
+        now = Date.now()
 
-        func = (p) ->
-            # In case we don't have the focus, we don't do anything
-            if not gaze.isactive() then return
+        if event.type == "over"
+            # Clear old timeout if there was one
+            if element._dwelltimeout then clearTimeout(element._dwelltimeout)
 
-            # Every thing that was registered with on... will be treated individually
-            module._handlers.each (f) ->
-                elements = f[0]
-                callback = f[1]
-                options = f[2]
+            # TODO Gracefully handle out and over again (i.e., decay just a little)
 
-                for e in elements
-                    # Ignore elements removed from tree
-                    if not document.body.contains(e) then continue
+            # See if there was residual time
+            time = event.options.dwellthreshold
 
-                    # Initialize values not present
-                    e._dwellaccumulatedtime = e._dwellaccumulatedtime || 0
-                    e._dwelllasttime = e._dwelllasttime || Date.now()
+            element._dwelltimeout = setTimeout( () ->
+                    event.options._dwelllistener()
+                , time)
 
-                    threshold = options.dwellthreshold
+        if event.type == "out"
+            if element._dwelltimeout then clearTimeout(element._dwelltimeout)
+            delete element._dwelltimeout
 
-                    r = e.getBoundingClientRect();
-                    dist = gaze.distance p.windowX, p.windowY, r.left, r.top, r.width, r.height
-                    lasttime = e._dwelllasttime
-                    currenttime = Date.now()
-
-                    dt = currenttime - lasttime
-
-                    # Check if we hit the element
-                    if dist == 0
-                        e._dwellaccumulatedtime += dt
-                        if e._dwellaccumulatedtime > threshold
-                            callback {type:"activate", element: e}
-                            e._dwellaccumulatedtime = 0
-
-                    else
-                        e._dwellaccumulatedtime -= options.dwelldecay
-                        e._dwellaccumulatedtime = 0 if e._dwellaccumulatedtime < 0
-
-                    e._dwelllasttime = currenttime
-
-        # Called when the first handler was added or removed
-        module._handlers.onpopulated = () -> removal = gaze.onfiltered func
-        module._handlers.onempty = () -> removal.remove()
 })
 
 
@@ -1136,6 +1105,7 @@ gaze.connectors = {
 ### Set global object ###
 global.gaze = new gaze(global)
 global.gaze.connectors = gaze.connectors
+
 
 
 
