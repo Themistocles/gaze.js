@@ -444,6 +444,18 @@ gaze.extension({} , {
 
 
 
+### QUALITY ###
+gaze.extension({} , {
+    id: "quality"
+
+    onframe: (frame, gaze, module) ->
+        if not frame.departTime then return
+        frame.latency = Date.now() - frame.departTime
+})
+
+
+
+
 ### BROWSER ###
 gaze.extension({
     ### Returns the browser ID ###
@@ -881,10 +893,22 @@ gaze.extension({
         if not elements.length # Our test to see if it is an array
             elements = [elements]
 
+        # Construct defaults
         if not options?
             options = {
-                radius: 0
+                radiusover: 0
+                radiusout: 15
             }
+
+        # Convert radius to over and out
+        if options.radius
+            options.radiusover = options.radius
+            options.radiusout = options.radius + 15
+
+        # Make sure we actually have all properties we need
+        if not options.radiusout? then options.radiusout = 0
+        if not options.radiusover? then options.radiusover = 0
+
 
         ext._handlers.add [elements, listener, options]
 }, {
@@ -914,11 +938,11 @@ gaze.extension({
                     dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
 
                     # Check if we hit the element
-                    if dist <= options.radius and not e._gazeover
+                    if dist <= options.radiusover and not e._gazeover
                         callback {type:"over", element: e}
                         e._gazeover = true
 
-                    if dist > options.radius and e._gazeover
+                    if dist > options.radiusout and e._gazeover
                         callback {type:"out", element: e}
                         e._gazeover = false
 
