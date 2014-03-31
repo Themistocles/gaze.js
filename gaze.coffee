@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 # Version of this script
-VERSION = 0.1
+VERSION = 0.5.2
 
 # Should suffice for the moment of getting the global
 global = window
@@ -579,11 +579,11 @@ gaze.extension({
 
     onframe: (frame, gaze, module) ->
         if not frame.screen then return
-        if not frame.screen.scaletologic then return
+        if not frame.screen.scaleToLogic then return
 
         # Update local desktop zoom if changed
-        if module.desktopzoom != 1.0 / frame.screen.scaletologic
-            module.desktopzoom = 1.0 / frame.screen.scaletologic
+        if module.desktopzoom != 1.0 / frame.screen.scaleToLogic
+            module.desktopzoom = 1.0 / frame.screen.scaleToLogic
 
             # And set variable
             localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
@@ -1051,6 +1051,7 @@ gaze.connectors = {
                 filtered: {
                     window: [w.x(), w.y()]
                     screen: [w.x() + global.screenX, w.y() + global.screenX]
+                    valid: false
                     windowdist: 0
                 }
             }
