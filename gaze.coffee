@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 # Version of this script
-VERSION = 0.5.2
+VERSION = "0.5.2"
 
 # Should suffice for the moment of getting the global
 global = window
@@ -376,21 +376,42 @@ gaze.fn = gaze.prototype = {
         return this
 
     ### Returns the distance of a point and a rect or two points ###
-    distance: (px, py, x, y, w, h) ->
+    distance: (x, y, rx, ry, rw, rh) ->
         # In case we only have 2 parameters, treat as two points a = [x, y], b = [x, y]
 
-        if not x?
-            a = px; b = py;
+        if not rx?
+            a = x; b = y;
             return Math.sqrt( (a[0]-b[0])**2 + (a[1]-b[1])**2 )
 
         # In case we only have 4 parameters, treat as two points in form x1 y1, x2, y2
-        if not w?
-            x1 = px; y1 = py; x2 = x; y2 = y
+        if not rw?
+            x1 = x; y1 = y; x2 = rx; y2 = ry
             return Math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
 
-        # TODO: Return actual distance if outside
-        if px >= x && px <= x + w && py >= y && py <= y + h then return 0
-        return 1
+        # In this case do real distance of point and rect
+        if x < rx # Region I, VIII, or VII
+            if y < ry # I
+                return @distance(x, y, rx, ry)
+            else if y > ry + rh # VII
+                return @distance(x, y, rx, ry + rh)
+            else # VIII
+                return rx - x
+        else if x > rx + rw # Region III, IV, or V
+            if y < ry # III
+                return @distance(x, y, rx + rw, ry)
+            else if y > ry + rh # V
+                return @distance(x, y, rx + rw, ry + rh)
+            else # IV
+                return x - (rx + rw)
+        else # Region II, IX, or VI
+            if y < ry # II
+                return ry - y
+            else if y > ry + rh # VI
+                return y - (ry + rh)
+            else # IX
+                return 0.0
+
+        throw "This should never happen."
 }
 
 
@@ -603,8 +624,8 @@ gaze.extension({
         global.document.addEventListener 'click', @click.bind(@)
 
         # Actual value converter
-        xx = (p, x, y) -> return x
-        yy = (p, x, y) -> return x
+        rx = (p, x, y) -> return x
+        ry = (p, x, y) -> return x
 
         # Pixel conversion function
         convert = (x, y) ->
@@ -616,24 +637,24 @@ gaze.extension({
                 x = x[0]
 
             p = gaze.browserpixelratio()
-            return [xx(p, x, y), yy(p, x, y)]
+            return [rx(p, x, y), ry(p, x, y)]
 
         # Sets the appropriate screen2window function based on browser
         if module.browser == "chrome"
-                xx = (p, x, y) -> (x - global.screenX + module.windowoffset[0]) / p
-                yy = (p, x, y) -> (y - global.screenY + module.windowoffset[1]) / p
+                rx = (p, x, y) -> (x - global.screenX + module.windowoffset[0]) / p
+                ry = (p, x, y) -> (y - global.screenY + module.windowoffset[1]) / p
 
         if module.browser == "ie"
-                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffset[0]) / p
-                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffset[1]) / p
+                rx = (p, x, y) -> (x - global.screenX * p + module.windowoffset[0]) / p
+                ry = (p, x, y) -> (y - global.screenY * p + module.windowoffset[1]) / p
 
         if module.browser == "safari" #TODO: safari currently wrong, measure again
-                xx = (p, x, y) -> (x - global.screenX + module.windowoffset[0]) / p
-                yy = (p, x, y) -> (y - global.screenY + module.windowoffset[1]) / p
+                rx = (p, x, y) -> (x - global.screenX + module.windowoffset[0]) / p
+                ry = (p, x, y) -> (y - global.screenY + module.windowoffset[1]) / p
 
         if module.browser == "firefox"
-                xx = (p, x, y) -> (x - global.screenX * p + module.windowoffset[0]) / p
-                yy = (p, x, y) -> (y - global.screenY * p + module.windowoffset[1]) / p
+                rx = (p, x, y) -> (x - global.screenX * p + module.windowoffset[0]) / p
+                ry = (p, x, y) -> (y - global.screenY * p + module.windowoffset[1]) / p
 
         gaze.screen2window = convert
 })
@@ -860,6 +881,11 @@ gaze.extension({
         if not elements.length # Our test to see if it is an array
             elements = [elements]
 
+        if not options?
+            options = {
+                radius: 0
+            }
+
         ext._handlers.add [elements, listener, options]
 }, {
     id: "gazeover"
@@ -878,6 +904,7 @@ gaze.extension({
             module._handlers.each (f) ->
                 elements = f[0]
                 callback = f[1]
+                options = f[2]
 
                 for e in elements
                     # Ignore elements removed from tree
@@ -887,11 +914,11 @@ gaze.extension({
                     dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
 
                     # Check if we hit the element
-                    if dist == 0 and not e._gazeover
+                    if dist <= options.radius and not e._gazeover
                         callback {type:"over", element: e}
                         e._gazeover = true
 
-                    if dist > 0 and e._gazeover
+                    if dist > options.radius and e._gazeover
                         callback {type:"out", element: e}
                         e._gazeover = false
 
