@@ -453,8 +453,35 @@ gaze.extension({} , {
 
     onframe: (frame, gaze, module) ->
         if not frame.departTime then return
+
         frame.latency = Date.now() - frame.departTime
 })
+
+
+
+### STORAGE ###
+gaze.extension({
+    ### Stores or retrieves a value ###
+    storage: (key, value) ->
+        manager = {
+            set: (key, value) ->
+                if not localStorage? then return
+                return localStorage.setItem(key, value)
+
+            get: (key, dflt) ->
+                if not localStorage? then return
+                return localStorage.getItem(key) or dflt
+        }
+
+        if key? and value? then manager.set(key, value)
+        if key? and not value? then  manager.get(key)
+
+        return manager
+    } , {
+
+    id: "storage"
+})
+
 
 
 
@@ -566,6 +593,7 @@ gaze.extension({
 
 }, {
     id: "browser"
+    depends: ["storage"]
 
     problems: {
         "W_ZOOMRATIO": {
@@ -609,8 +637,8 @@ gaze.extension({
 
       @windowoffset = [dx, dy]
 
-      localStorage.setItem("_gaze_windowoffsetx", dx)
-      localStorage.setItem("_gaze_windowoffsety", dy)
+      @_gaze.storage("_gaze_windowoffsetx", dx)
+      @_gaze.storage("_gaze_windowoffsety", dy)
 
 
     deinit: (gaze, module) -> global.document.removeEventListener @click
@@ -624,7 +652,7 @@ gaze.extension({
             module.desktopzoom = 1.0 / frame.screen.scaleToLogic
 
             # And set variable
-            localStorage.setItem("_gaze_desktopzoom", module.desktopzoom)
+            gaze.storage("_gaze_desktopzoom", module.desktopzoom)
 
 
     init: (gaze, module) ->
@@ -632,11 +660,11 @@ gaze.extension({
 
         document = global.document
 
-        # Compute some values and get others from localstorage
+        # Compute some values and get others from storage
         module.browser = gaze.browser()
-        module.desktopzoom = parseFloat(localStorage.getItem("_gaze_desktopzoom")) or 1.0
-        module.windowoffset[0] = parseInt(localStorage.getItem("_gaze_windowoffsetx")) or 0
-        module.windowoffset[1] = parseInt(localStorage.getItem("_gaze_windowoffsety")) or 0
+        module.desktopzoom = parseFloat(gaze.storage("_gaze_desktopzoom")) or 1.0
+        module.windowoffset[0] = parseInt(gaze.storage("_gaze_windowoffsetx")) or 0
+        module.windowoffset[1] = parseInt(gaze.storage("_gaze_windowoffsety")) or 0
 
         global.document.addEventListener 'click', @click.bind(@)
 
@@ -929,6 +957,8 @@ gaze.extension({
             # Get the scale factor since the user might have zoomed in or out
             scale = gaze.browserpixelratio()
 
+            console.log scale
+
             # Every thing that was registered with on... will be treated individually
             module._handlers.each (f) ->
                 elements = f[0]
@@ -942,6 +972,8 @@ gaze.extension({
 
                     r = e.getBoundingClientRect()
                     dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
+
+                    vistest = global.document.elementFromPoint(p.window[0], p.window[1])
 
                     # Check if we hit the element
                     if dist <= options.radiusover / scale and (not e._gazeover or options.continueover)
