@@ -372,6 +372,14 @@ gaze.fn = gaze.prototype = {
             x1 = x; y1 = y; x2 = rx; y2 = ry
             return Math.sqrt( (x1-x2)**2 + (y1-y2)**2 )
 
+        #
+        #        I   |    II    |  III
+        #      ======+==========+======   --yMin
+        #       VIII |  IX (in) |  IV
+        #      ======+==========+======   --yMax
+        #       VII  |    VI    |   V
+        #
+
         # In this case do real distance of point and rect
         if x < rx # Region I, VIII, or VII
             if y < ry # I
@@ -939,6 +947,7 @@ gaze.extension({
         if not options.radiusout? then options.radiusout = 0  # gaze has to be within this many pixel from the edge to trigger "over"
         if not options.radiusover? then options.radiusover = 15 # gaze has to be outside this many pixel from the edge to trigger "out"
         if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
+        if not options.visibilitycheck? then options.visibilitycheck = false # if we should check if the element is actually visible
 
         ext._handlers.add [elements, listener, options]
 }, {
@@ -971,14 +980,33 @@ gaze.extension({
                     r = e.getBoundingClientRect()
                     dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
 
-                    vistest = global.document.elementFromPoint(p.window[0], p.window[1])
+                    visible = true
+
+                    if options.visibilitycheck
+                        # Check if we actually hit the element.
+                        # TODO: Check all 9 sectors and perform closest edge hit test
+                        hittest = global.document.elementFromPoint(r.left + r.width / 2 , r.top + r.height / 2)
+                        visible = false
+
+                        # Check if we hit it or its parent
+                        if hittest != null
+                            while true
+                                if hittest == e
+                                    visible = true
+                                    break
+
+                                # Make sure we dont run in a loop
+                                if not hittest.parentNode? then break
+                                if hittest.parentNode == hittest then break
+                                hittest = hittest.parentNode
+
 
                     # Check if we hit the element
-                    if dist <= options.radiusover / scale and (not e._gazeover or options.continueover)
+                    if dist <= options.radiusover / scale and visible and (not e._gazeover or options.continueover)
                         callback {type:"over", element: e, options: options}
                         e._gazeover = true
 
-                    if dist > options.radiusout / scale and e._gazeover
+                    if (dist > options.radiusout / scale or not visible) and e._gazeover
                         callback {type:"out", element: e, options: options}
                         e._gazeover = false
 
