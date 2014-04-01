@@ -944,8 +944,8 @@ gaze.extension({
             options.radiusout = options.radius + 15
 
         # Make sure we actually have all properties we need
-        if not options.radiusout? then options.radiusout = 0  # gaze has to be within this many pixel from the edge to trigger "over"
-        if not options.radiusover? then options.radiusover = 15 # gaze has to be outside this many pixel from the edge to trigger "out"
+        if not options.radiusout? then options.radiusout = 15  # gaze has to be within this many pixel from the edge to trigger "over"
+        if not options.radiusover? then options.radiusover = 0 # gaze has to be outside this many pixel from the edge to trigger "out"
         if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
         if not options.visibilitycheck? then options.visibilitycheck = false # if we should check if the element is actually visible
 
