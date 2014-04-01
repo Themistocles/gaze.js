@@ -1018,6 +1018,29 @@ gaze.extension({
 
 
 
+### SELECT ###
+gaze.extension({
+    onselect: (elements, listener, options) ->
+        ext = @extension("select")
+
+        if not options? then options = {}
+
+        @ongazeover(elements, ext.selecthandler, options)
+}, {
+    id: "select"
+    depends: ["gazeover"]
+
+    selecthandler: (event) ->
+        if event.type == "over"
+
+        if event.type == "out"
+
+})
+
+
+
+
+
 
 ### DWELL ###
 gaze.extension({
