@@ -66,7 +66,7 @@ problems = {
     }
 
     "I_MOUSEFALLBACK": {
-        message: "Switched to mouse fallback."
+        message: "No eye tracker was found on your system. We will fall back to mouse emulation."
         type: "info"
     }
 }
@@ -598,6 +598,8 @@ gaze.extension({
                 note.style.right = "50px"
             ,1)
 
+        return note
+
 
 }, {
     id: "browser"
@@ -721,34 +723,26 @@ gaze.extension({} , {
     id: "userhelp"
 
     init: (gaze, module) ->
+        # Setup general problem handling
         module.remove = gaze.onproblem (problem) ->
+            config = {}
+            config.links = []
+
+            config.links.push {
+                url: "http://gaze.io/faq/#" + problem.id
+                text: "Get more help"
+            }
+
+            # Only bubble for some messages
+            if not (problem.type == "warning" or problem.type == "error" or problem.id == "I_MOUSEFALLBACK")
+                return
+
             # Special handling for I_MOUSEFALLBACK
             if problem.id == "I_MOUSEFALLBACK"
-                str = "No eye tracker was found on your system. We will fall back to mouse emulation."
+                config.links[0].text = "Have a tracker or need help?"
 
-                config = {
-                    links: [
-                        {
-                            url: "http://gaze.io/faq/#I_MOUSEFALLBACK",
-                            text: "Have a tracker or need help?"
-                        }
-                    ]
-                }
+            gaze.notifiybubble(problem.message, config)
 
-                gaze.notifiybubble(str, config)
-
-            else
-                # Assemble generic message
-                config = {
-                    links: [
-                        {
-                            url: "http://gaze.io/faq/#" + problem.id,
-                            text: "Get more help."
-                        }
-                    ]
-                }
-
-                gaze.notifiybubble(problem.message, config)
 
 
 
@@ -1032,8 +1026,10 @@ gaze.extension({
 
     selecthandler: (event) ->
         if event.type == "over"
+            2
 
         if event.type == "out"
+            1
 
 })
 
