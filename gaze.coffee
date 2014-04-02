@@ -722,6 +722,9 @@ gaze.extension({
 gaze.extension({} , {
     id: "userhelp"
 
+    handlerfocus: null
+    handlerblur: null
+
     init: (gaze, module) ->
         # Setup general problem handling
         module.remove = gaze.onproblem (problem) ->
@@ -744,6 +747,18 @@ gaze.extension({} , {
             gaze.notifiybubble(problem.message, config)
 
 
+        # Put this in here at the moment. Might need to find a better place.
+        message = null
+
+        module.handlerfocus = (e) ->
+            message.parentNode.removeChild(message)
+
+        module.handlerblur = (e) ->
+            message = gaze.notifiybubble("The document has lost focus. Eye tracking data will not be processed at the moment.")
+
+        # Setup non-focus handler
+        global.addEventListener('focus', module.handlerfocus);
+        global.addEventListener('blur', module.handlerblur);
 
 
     deinit: (gaze, module) -> module.remove.remove()
@@ -970,6 +985,7 @@ gaze.extension({
 
                     # Ignore elements removed from tree
                     if not document.body.contains(e) then continue
+                    if not p.window then continue
 
                     r = e.getBoundingClientRect()
                     dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
