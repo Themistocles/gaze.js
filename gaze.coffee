@@ -551,7 +551,24 @@ gaze.extension({
     ### Override the isactive method ###
     isactive: () -> global.document.hasFocus()
 
+    ### Performs a hit test on the given window coordinate and checks if the
+    given element is actually visible ###
+    hittest: (x, y, element) ->
+        # Check if we actually hit the element.
+        hittest = global.document.elementFromPoint(x , y)
 
+        # Check if we hit it or its parent
+        if hittest != null
+            while true
+                if hittest == element
+                    return true
+
+                # Make sure we dont run in a loop
+                if not hittest.parentNode? then break
+                if hittest.parentNode == hittest then break
+                hittest = hittest.parentNode
+
+        return false
 
     ### Notify user with a bubble ###
     notifiybubble: (string, config) ->
@@ -956,7 +973,7 @@ gaze.extension({
         if not options.radiusout? then options.radiusout = 15  # gaze has to be within this many pixel from the edge to trigger "over"
         if not options.radiusover? then options.radiusover = 0 # gaze has to be outside this many pixel from the edge to trigger "out"
         if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
-        if not options.visibilitycheck? then options.visibilitycheck = false # if we should check if the element is actually visible
+        if not options.visibilitytest? then options.visibilitycheck = false # if we should check if the element is actually visible
         if not options.transaction? then options.transaction = false # if we should also emit "begin" and "end" messages for events
 
         ext._handlers.add [elements, listener, options]
@@ -992,35 +1009,23 @@ gaze.extension({
                     if not p.window then continue
 
                     r = e.getBoundingClientRect()
-                    dist = gaze.distance p.window[0], p.window[1], r.left, r.top, r.width, r.height
+                    dist = gaze.distance(p.window[0], p.window[1], r.left, r.top, r.width, r.height)
 
                     visible = true
+                    hit = true
 
-                    if options.visibilitycheck
-                        # Check if we actually hit the element.
-                        # TODO: Check all 9 sectors and perform closest edge hit test
-                        hittest = global.document.elementFromPoint(r.left + r.width / 2 , r.top + r.height / 2)
-                        visible = false
+                    if options.visibilitytest
+                        visible = gaze.hittest(r.left + r.width / 2 , r.top + r.height / 2, e)
 
-                        # Check if we hit it or its parent
-                        if hittest != null
-                            while true
-                                if hittest == e
-                                    visible = true
-                                    break
-
-                                # Make sure we dont run in a loop
-                                if not hittest.parentNode? then break
-                                if hittest.parentNode == hittest then break
-                                hittest = hittest.parentNode
-
+                    if options.hittest
+                        hit = gaze.hittest(p.window[0], p.window[1], e)
 
                     # Check if we hit the element
-                    if dist <= options.radiusover / scale and visible and (not e._gazeover or options.continueover)
+                    if dist <= options.radiusover / scale and visible and hit and (not e._gazeover or options.continueover)
                         callback {type:"over", element: e, distance: dist, options: options}
                         e._gazeover = true
 
-                    if (dist > options.radiusout / scale or not visible) and e._gazeover
+                    if (dist > options.radiusout / scale or not visible or not hit) and e._gazeover
                         callback {type:"out", element: e, distance: dist, options: options}
                         e._gazeover = false
 
