@@ -957,6 +957,7 @@ gaze.extension({
         if not options.radiusover? then options.radiusover = 0 # gaze has to be outside this many pixel from the edge to trigger "out"
         if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
         if not options.visibilitycheck? then options.visibilitycheck = false # if we should check if the element is actually visible
+        if not options.transaction? then options.transaction = false # if we should also emit "begin" and "end" messages for events
 
         ext._handlers.add [elements, listener, options]
 }, {
@@ -980,6 +981,9 @@ gaze.extension({
                 elements = f[0]
                 callback = f[1]
                 options = f[2]
+
+                # If requested, start a transaction
+                if options.transaction then callback {type:"begin", options: options}
 
                 for e in elements
 
@@ -1013,12 +1017,16 @@ gaze.extension({
 
                     # Check if we hit the element
                     if dist <= options.radiusover / scale and visible and (not e._gazeover or options.continueover)
-                        callback {type:"over", element: e, options: options}
+                        callback {type:"over", element: e, distance: dist, options: options}
                         e._gazeover = true
 
                     if (dist > options.radiusout / scale or not visible) and e._gazeover
-                        callback {type:"out", element: e, options: options}
+                        callback {type:"out", element: e, distance: dist, options: options}
                         e._gazeover = false
+
+                # If requested, end the transaction
+                if options.transaction then callback {type:"end", options: options}
+
 
 
         # Called when the first handler was added or removed
@@ -1035,12 +1043,20 @@ gaze.extension({
 
         if not options? then options = {}
 
+        options.transaction = true
+
         @ongazeover(elements, ext.selecthandler, options)
 }, {
     id: "select"
     depends: ["gazeover"]
 
     selecthandler: (event) ->
+        if event.type == "begin"
+            2
+
+        if event.type == "end"
+            2
+
         if event.type == "over"
             2
 
