@@ -1025,7 +1025,7 @@ gaze.extension({
         ext._handlers.add [elements, listener, options]
 }, {
     id: "gazeover"
-    depends: ["browser", "filtered"]
+    depends: ["browser", "filtered", "fixation"]
 
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
@@ -1097,6 +1097,7 @@ gaze.extension({
 
         if not options? then options = {}
         if not options.p? then options.p = (e) -> 1 # the likelihood function (e) -> [0, 1]
+        if not options.overlapping? then options.overlapping = false # If we should try to handle overlapping elements
 
         options.selectradius = 100
 
@@ -1141,8 +1142,13 @@ gaze.extension({
             all.push(map)
 
 
+        # In case there was none left, emit an empty event
+        if all.length == 0
+            options.selectlistener( { type: "empty" } )
+            return
+
+
         # Get best element
-        if all.length == 0 then return
         all.sort (a, b) -> return b.likelihood - a.likelihood
 
         # Make sure we have top element
@@ -1182,7 +1188,7 @@ gaze.extension({
             if map.selectdistance < 10 then map.selectdistance = 10
 
             # If we actually hit the element, bump score even higher
-            if @gaze.hittest(event.gazewindow[0], event.gazewindow[1], element)
+            if options.overlapping and @gaze.hittest(event.gazewindow[0], event.gazewindow[1], element)
                 map.selectdistance = 5
 
 
@@ -1264,13 +1270,12 @@ gaze.connectors = {
     "relay": (url, status, frame) ->
         url = "ws://127.0.0.1:44042" if not url?
 
+        i = 0
         socket = new WebSocket(url)
         socket.onerror = status
         socket.onopen = status
         socket.onclose = status
-        socket.onmessage = (evt) ->
-            console.log(evt.data)
-            frame JSON.parse(evt.data)
+        socket.onmessage = (evt) -> frame JSON.parse(evt.data)
 
         return {
             tracker: null
