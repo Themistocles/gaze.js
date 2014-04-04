@@ -184,6 +184,25 @@ vector.prototype = {
         return @
 
 
+    ### Computes the mode of this vector. ###
+    mode: () ->
+        # Code stolen from
+        # http://stackoverflow.com/questions/1053843/get-the-element-with-the-highest-occurrence-in-an-array
+        tmp = []
+        max = ''
+        maxi=0
+
+        for k in @data
+
+            if(tmp[k]) then tmp[k]++ else tmp[k]=1
+
+            if(maxi<tmp[k])
+                max=k
+                maxi=tmp[k]
+
+        return max
+
+
     ### Sets all elements to random ###
     rand: () -> @data[i] = Math.random() for e, i in @data; return @
 
@@ -551,6 +570,23 @@ gaze.extension({
     ### Override the isactive method ###
     isactive: () -> global.document.hasFocus()
 
+    ### Returns a new ID or make sure we have one ###
+    id: (element) ->
+        ext = @extension("browser")
+
+        # Make sure we return the element id if it exists
+        if element and element.id then return element.id
+
+        id = "gioid" + ext.lastID++
+
+        # No element given? Just return the ID.
+        if not element? then return id
+
+        # Eventually set it and return it
+        element.setAttribute("id", id);
+        return id
+
+
     ### Performs a hit test on the given window coordinate and checks if the
     given element is actually visible ###
     hittest: (x, y, element) ->
@@ -620,6 +656,10 @@ gaze.extension({
 
 }, {
     id: "browser"
+
+    ### Last ID number emitted by gaze.io framework ###
+    lastID: 0
+
     depends: ["storage"]
 
     problems: {
@@ -768,6 +808,7 @@ gaze.extension({} , {
         message = null
 
         module.handlerfocus = (e) ->
+            if message == null then return
             message.parentNode.removeChild(message)
 
         module.handlerblur = (e) ->
@@ -935,8 +976,6 @@ gaze.extension({
             frame.fixation = fixation
 
 
-
-
         # Call our handler function
         module.computefixation gaze, frame.filtered.screen, newfixation, continuedfixation
 
@@ -973,13 +1012,20 @@ gaze.extension({
         if not options.radiusout? then options.radiusout = 15  # gaze has to be within this many pixel from the edge to trigger "over"
         if not options.radiusover? then options.radiusover = 0 # gaze has to be outside this many pixel from the edge to trigger "out"
         if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
-        if not options.visibilitytest? then options.visibilitycheck = false # if we should check if the element is actually visible
+        if not options.visibilitytest? then options.visibilitytest = false # if we should check if the element is actually visible
         if not options.transaction? then options.transaction = false # if we should also emit "begin" and "end" messages for events
+        if not options.hittest? then options.hittest = false # if we should also emit "begin" and "end" messages for events
+
+        # Ensure all elements have IDs
+        @id(element) for element in elements
+
+        # We need this for internal handling
+        options.gazeovermap = {}
 
         ext._handlers.add [elements, listener, options]
 }, {
     id: "gazeover"
-    depends: ["filtered"]
+    depends: ["browser", "filtered"]
 
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
@@ -999,8 +1045,12 @@ gaze.extension({
                 callback = f[1]
                 options = f[2]
 
+                gazeovermap = options.gazeovermap
+                hittest = options.hittest
+                visibilitytest = options.visibilitytest
+
                 # If requested, start a transaction
-                if options.transaction then callback {type:"begin", options: options}
+                if options.transaction then callback {type:"begin", elements:elements, options: options}
 
                 for e in elements
 
@@ -1009,29 +1059,28 @@ gaze.extension({
                     if not p.window then continue
 
                     r = e.getBoundingClientRect()
-                    dist = gaze.distance(p.window[0], p.window[1], r.left, r.top, r.width, r.height)
+                    distance = gaze.distance(p.window[0], p.window[1], r.left, r.top, r.width, r.height)
 
                     visible = true
                     hit = true
+                    id = e.id
 
-                    if options.visibilitytest
-                        visible = gaze.hittest(r.left + r.width / 2 , r.top + r.height / 2, e)
-
-                    if options.hittest
-                        hit = gaze.hittest(p.window[0], p.window[1], e)
+                    if visibilitytest then visible = gaze.hittest(r.left + r.width / 2 , r.top + r.height / 2, e)
+                    if hittest then hit = gaze.hittest(p.window[0], p.window[1], e)
 
                     # Check if we hit the element
-                    if dist <= options.radiusover / scale and visible and hit and (not e._gazeover or options.continueover)
-                        callback {type:"over", element: e, distance: dist, options: options}
-                        e._gazeover = true
+                    if distance <= options.radiusover / scale and visible and hit
+                        if not gazeovermap[id] or options.continueover
+                            callback {type:"over", element: e, distance: distance, gazewindow: p.window, options: options}
+                            gazeovermap[id] = true
 
-                    if (dist > options.radiusout / scale or not visible or not hit) and e._gazeover
-                        callback {type:"out", element: e, distance: dist, options: options}
-                        e._gazeover = false
+                    else if gazeovermap[id]
+                            callback {type:"out", element: e, distance: distance, gazewindow: p.window, options: options}
+                            gazeovermap[id] = false
+
 
                 # If requested, end the transaction
-                if options.transaction then callback {type:"end", options: options}
-
+                if options.transaction then callback {type:"end", elements:elements, options: options}
 
 
         # Called when the first handler was added or removed
@@ -1047,27 +1096,103 @@ gaze.extension({
         ext = @extension("select")
 
         if not options? then options = {}
+        if not options.p? then options.p = (e) -> 1 # the likelihood function (e) -> [0, 1]
 
+        options.selectradius = 100
+
+        # Setup gazeover for select function
         options.transaction = true
+        options.visibilitytest = false
+        options.hittest = false
+        options.continueover = true # Have to be continuous since we need updated distances
+        options.radiusover = options.selectradius
+        options.radiusout = options.selectradius
 
-        @ongazeover(elements, ext.selecthandler, options)
+        # Add our own helper map for all elements we consider
+        options.selectmap = {}
+        options.selectlistener = listener
+
+        @ongazeover(elements, ext.selecthandler.bind(ext), options)
 }, {
     id: "select"
     depends: ["gazeover"]
+    gaze: null
 
+    ### Store gaze object for handler ###
+    init: (gaze) -> @gaze = gaze
+
+    ### Compute likelihood for every batch of elements ###
+    processor: (elements, options) ->
+        selectmap = options.selectmap
+
+        all = []
+
+        # Now compute for every element
+        for element in elements
+            map = selectmap[element.id]
+
+            if not map then continue
+            if not map.selectover then continue
+
+            map.element = element
+            map.p = options.p(element)
+            map.likelihood = map.p * (options.selectradius - map.selectdistance)
+
+            all.push(map)
+
+
+        # Get best element
+        if all.length == 0 then return
+        all.sort (a, b) -> return b.likelihood - a.likelihood
+
+        # Make sure we have top element
+        best = all[0]
+
+        # Call with this element if it changed
+        if not options.lastselected or options.lastselected != best.element
+            options.selectlistener({type:"selected", element: best.element})
+
+        options.lastselected = best.element
+
+
+
+    ### Handle gaze over/out messages ###
     selecthandler: (event) ->
-        if event.type == "begin"
-            2
+        options = event.options
+        selectmap = options.selectmap
 
+        # After the end of the batch call we do our calculations
         if event.type == "end"
-            2
+            @processor(event.elements, options)
 
+        # For every element that was over, store distances and other metrics
+        # (Note that we get continuous over messages)
         if event.type == "over"
-            2
+            element = event.element
 
+            # Make sure we have something for the element
+            if not selectmap[element.id] then selectmap[element.id] = {}
+
+            map = selectmap[element.id]
+            map.selectover = true
+            map.selectdistance = event.distance
+
+
+            # Make sure we have small non-null distance
+            if map.selectdistance < 10 then map.selectdistance = 10
+
+            # If we actually hit the element, bump score even higher
+            if @gaze.hittest(event.gazewindow[0], event.gazewindow[1], element)
+                map.selectdistance = 5
+
+
+
+        # If it was out, disregard it
         if event.type == "out"
-            1
+            element = event.element
 
+            map = selectmap[element.id]
+            map.selectover = false
 })
 
 
@@ -1143,7 +1268,9 @@ gaze.connectors = {
         socket.onerror = status
         socket.onopen = status
         socket.onclose = status
-        socket.onmessage = (evt) -> frame JSON.parse(evt.data)
+        socket.onmessage = (evt) ->
+            console.log(evt.data)
+            frame JSON.parse(evt.data)
 
         return {
             tracker: null
