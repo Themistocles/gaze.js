@@ -29,7 +29,7 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 
 # Version of this script
-VERSION = "0.6.0"
+VERSION = "%%VERSION%%"
 
 # Should suffice for the moment of getting the global
 global = window

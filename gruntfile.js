@@ -13,11 +13,22 @@ module.exports = function(grunt) {
                     sourceMap: true
                 },
                 files: {
-                'gaze.js': 'gaze.coffee', // 1:1 compile
+                    'gaze.js': 'gaze.coffee', // 1:1 compile
                 }
             }
         },
 
+        replace: {
+            example: {
+                src: ['gaze.js'],
+                dest: 'gaze.js',
+                replacements: [{
+                    from: '%%VERSION%%',
+                    to: version
+                    }
+                ]
+            }
+        },
 
         // Minify
         uglify: {
@@ -75,8 +86,9 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-ftp-deploy');
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-mkdir');
+  grunt.loadNpmTasks('grunt-text-replace');
 
   // Default task(s).
-  grunt.registerTask('default', ['coffee', 'uglify', 'copy', 'ftp-deploy']);
+  grunt.registerTask('default', ['coffee', 'replace', 'uglify', 'copy', 'ftp-deploy']);
 
 };
