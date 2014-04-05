@@ -1,3 +1,5 @@
-gaze.js
-gaze.xtra.js
+gaze*.js
 *.map
+.ftppass
+dist
+node_modules
