@@ -95,7 +95,7 @@ module.exports = function(grunt) {
                 },
 
                 src: 'dist/',
-                dest: '/www.gazeio/gaze.io',
+                dest: '/www.gazeio/gaze.js',
                 //exclusions: ['./.*', './node_modules/' ]
             },
 
