@@ -47,7 +47,7 @@ module.exports = function(grunt) {
         copy: {
             main: {
                 files: [
-                    { expand: true, src: ['gaze.js'], dest: 'dist/', filter: 'isFile' },
+                    { expand: true, src: ['gaze.*.js'], dest: 'dist/', filter: 'isFile' },
 
                     {
                         expand: true,
@@ -57,14 +57,25 @@ module.exports = function(grunt) {
                         rename: function(dest, src) {
                             return dest + src.replace(/gaze\.js/, "gaze-" + version + ".js");
                         }
+                    },
+
+                    {
+                        expand: true,
+                        src: ['gaze.min.js'],
+                        dest: 'dist/' ,
+                        filter: 'isFile',
+                        rename: function(dest, src) {
+                            return dest + src.replace(/gaze\.min\.js/, "gaze-" + version + ".min.js");
+                        }
                     }
+
                 ]
             }
         },
 
 
         'ftp-deploy': {
-            build: {
+            downloads: {
                 auth: {
                     host: 'gaze.io',
                     port: 21,
@@ -73,8 +84,21 @@ module.exports = function(grunt) {
 
                 src: 'dist/',
                 dest: '/www.gazeio.downloads/gaze.io',
+                exclusions: ['gaze.xtra.js' ]
+            },
+
+            web: {
+                auth: {
+                    host: 'gaze.io',
+                    port: 21,
+                    authKey: 'xr'
+                },
+
+                src: 'dist/',
+                dest: '/www.gazeio/gaze.io',
                 //exclusions: ['./.*', './node_modules/' ]
             },
+
         },
 
   });
