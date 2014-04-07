@@ -1144,7 +1144,7 @@ gaze.extension({
 
         # In case there was none left, emit an empty event
         if all.length == 0
-            options.selectlistener( { type: "empty" } )
+            options.selectlistener( { type: "deselected" } )
             return
 
 
@@ -1156,7 +1156,7 @@ gaze.extension({
 
         # Call with this element if it changed
         if not options.lastselected or options.lastselected != best.element
-            options.selectlistener( {type:"selected", element: best.element} )
+            options.selectlistener( { type: "selected", element: best.element } )
 
         options.lastselected = best.element
 
