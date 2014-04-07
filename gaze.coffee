@@ -1121,7 +1121,7 @@ gaze.extension({
 
                     # Check if we hit the element
                     if distance <= options.radiusover / scale and visible and hit
-                        if not gazeovermap[id] or options.continueover
+                        if (not gazeovermap[id]) or options.continueover
                             callback {type:"over", element: e, distance: distance, gazewindow: p.window, options: options}
                             gazeovermap[id] = true
 
@@ -1214,10 +1214,10 @@ gaze.extension({
 
 
         # Call with this element if it changed
-        if (not options.lastselected) or (best? and options.lastselected != best.element)
+        if (not options.lastselected) or (options.lastselected != best.element)
             options.selectlistener( { type: "selected", element: best.element } )
 
-        if best? then options.lastselected = best.element
+        options.lastselected = best.element
 
 
 
