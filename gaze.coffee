@@ -1189,9 +1189,13 @@ gaze.extension({
             map = selectmap[element.id]
 
             if not map then continue
+
+            map.likelihood = 0 # Need to reset likelihood since otherwise the old value
+                               # might be stuck until we move away fast.
+
             if not map.selectover then continue
 
-            # This probability computations needs some improvements.
+            # TODO: This probability computations needs some improvements.
             map.element = element
             map.p = options.p(element)
             map.reldist = (options.selectradius - map.selectdistance) / options.selectradius
@@ -1216,7 +1220,6 @@ gaze.extension({
 
         # Make sure we have top element
         best = all[0]
-
 
         # Call with this element if it changed
         if (not last.element) or (last.element != best.element)
@@ -1247,7 +1250,6 @@ gaze.extension({
             map = selectmap[element.id]
             map.selectover = true
             map.selectdistance = event.distance
-
 
             # Make sure we have small non-null distance
             if map.selectdistance < 10 then map.selectdistance = 10
@@ -1366,6 +1368,11 @@ gaze.connectors = {
         last = null; timer = null
         number = 0
 
+        # Inform that we have some problems ...
+        if !!global.chrome then console.log("""Please note that the mouse emulation sometimes
+            does not generate positions properly on scrolled pages in
+            Chrome. See https://github.com/gazeio/gaze.js/issues/7.""")
+
         motion = (e) -> last = e
         tick = () ->
 
@@ -1406,7 +1413,7 @@ gaze.connectors = {
                 }
             }
 
-        document.addEventListener('mousemove', motion, false);
+        document.addEventListener('mousemove', motion);
         timer = setInterval tick, 30
 
         return {
