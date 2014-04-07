@@ -1022,10 +1022,19 @@ gaze.extension({
         # We need this for internal handling
         options.gazeovermap = {}
 
+        # Store largest distance and handlers
+        ext.largestdistance = Math.max(ext.largestdistance, options.radiusout, options.radiusover)
         ext._handlers.add [elements, listener, options]
 }, {
     id: "gazeover"
     depends: ["browser", "filtered", "fixation"]
+
+    largestdistance: 100 # The largest distance to consider for over / out
+
+    last: {
+        gazepos: [0, 0]
+        distances: {}
+    }
 
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
@@ -1035,9 +1044,46 @@ gaze.extension({
         func = (p) ->
             # In case we don't have the focus, we don't do anything
             if not gaze.isactive() then return
+            if not p.window then return
 
             # Get the scale factor since the user might have zoomed in or out
             scale = gaze.browserpixelratio()
+
+            rects = {}
+            distances = module.last.distances
+
+            gazemoved = gaze.distance(module.last.gazepos, p.window)
+
+            # Actually queries a DOM element and stores the distances and position
+            query = (e, id) ->
+                r = e.getBoundingClientRect()
+                rects[id] = r
+                distances[id] = gaze.distance(p.window[0], p.window[1], r.left, r.top, r.width, r.height)
+
+
+            # This speeds up our computation since we first only query all elements
+            # which will be unaffected by the re-layout triggered in handlers
+            module._handlers.each (f) ->
+                elements = f[0]
+
+                for e in elements
+                    if not document.body.contains(e) then continue
+                    id = e.id
+
+                    # If the element already has a distance, assume we moved closer by gaze delta
+                    if distances[id]
+                        distances[id] -= gazemoved
+
+                        # If now we are within the critical radius, query it again
+                        if distances[id] < module.largestdistance
+                            query(e, id)
+
+                        # If not, or in generally also, just continue with next element
+                        continue
+
+                    # In case we did not have a distance, just continue anyway
+                    query(e, id)
+
 
             # Every thing that was registered with on... will be treated individually
             module._handlers.each (f) ->
@@ -1052,18 +1098,23 @@ gaze.extension({
                 # If requested, start a transaction
                 if options.transaction then callback {type:"begin", elements:elements, options: options}
 
+                # Now compute for all elements
                 for e in elements
+                    id = e.id
 
-                    # Ignore elements removed from tree
-                    if not document.body.contains(e) then continue
-                    if not p.window then continue
+                    # TODO: for heavily animated / fast moving objects,
+                    # we must provide override that we query anyway regardless of
+                    # cache logic above
 
-                    r = e.getBoundingClientRect()
-                    distance = gaze.distance(p.window[0], p.window[1], r.left, r.top, r.width, r.height)
+                    # 'rects' is our main way to determine if the element needs processing.
+                    # Distances in contrast is cached over multiple calls
+                    if not rects[id]? then continue
+
+                    r = rects[id]
+                    distance = distances[id]
 
                     visible = true
                     hit = true
-                    id = e.id
 
                     if visibilitytest then visible = gaze.hittest(r.left + r.width / 2 , r.top + r.height / 2, e)
                     if hittest then hit = gaze.hittest(p.window[0], p.window[1], e)
@@ -1082,6 +1133,8 @@ gaze.extension({
                 # If requested, end the transaction
                 if options.transaction then callback {type:"end", elements:elements, options: options}
 
+            # Store last gaze position
+            module.last.gazepos = p.window
 
         # Called when the first handler was added or removed
         module._handlers.onpopulated = () -> removal = gaze.onfiltered func
