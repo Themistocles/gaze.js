@@ -1,4 +1,4 @@
-var version = "0.6.1";
+var version = "0.6.2";
 
 module.exports = function(grunt) {
 
