@@ -1156,7 +1156,7 @@ gaze.extension({
 
         # Call with this element if it changed
         if not options.lastselected or options.lastselected != best.element
-            options.selectlistener({type:"selected", element: best.element})
+            options.selectlistener( {type:"selected", element: best.element} )
 
         options.lastselected = best.element
 
@@ -1216,12 +1216,14 @@ gaze.extension({
         if typeof options == "number"
             number = options
             options = {}
-            options.dwellthreshold = number
+            options.dwelltime = number
 
-        if not options.dwellthreshold? then options.dwellthreshold = 500 # The dwell time to activate
+        if not options.dwelltime? then options.dwelltime = 500 # The dwell time to activate
         if not options.dwelldecay? then options.dwelldecay = 100 # The decay amount every frame user is not there
+        if not options.dwellrepeat? then options.dwellrepeat = false # The decay amount every frame user is not there
 
-        options._dwelllistener = listener
+        options.dwellmap = {}
+        options.dwelllistener = listener
 
         @ongazeover(elements, ext.dwellhandler, options)
 }, {
@@ -1230,25 +1232,32 @@ gaze.extension({
 
     dwellhandler: (event) ->
         element = event.element
+        options = event.options
+
+        if not options.dwellmap[element.id]? then options.dwellmap[element.id] = {}
+
+        dwelltime = options.dwelltime
+        dwellmap = options.dwellmap[element.id]
+
         now = Date.now()
 
+        # Function to call when dwell was activated
+        activator = () ->
+            options.dwelllistener( {type:"activate", element: element, options: options} )
+            if options.dwellrepeat then dwellmap.timeout = setTimeout( activator, dwelltime )
+
+
         if event.type == "over"
-            # Clear old timeout if there was one
-            if element._dwelltimeout then clearTimeout(element._dwelltimeout)
-
             # TODO Gracefully handle out and over again (i.e., decay just a little)
+            if dwellmap.timeout? then clearTimeout(dwellmap.timeout)
 
-            # See if there was residual time
-            time = event.options.dwellthreshold
+            # TODO: See if there was residual time
+            dwellmap.timeout = setTimeout( activator, dwelltime )
 
-            element._dwelltimeout = setTimeout( () ->
-                    event.options._dwelllistener()
-                , time)
 
         if event.type == "out"
-            if element._dwelltimeout then clearTimeout(element._dwelltimeout)
-            delete element._dwelltimeout
-
+            if dwellmap.timeout then clearTimeout(dwellmap.timeout)
+            delete dwellmap.timeout
 })
 
 
