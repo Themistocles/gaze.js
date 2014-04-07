@@ -1179,6 +1179,7 @@ gaze.extension({
     processor: (elements, options) ->
         selectmap = options.selectmap
 
+        # All contains a list off all elements in the region
         all = []
 
         # Now compute for every element
@@ -1197,8 +1198,12 @@ gaze.extension({
 
         # In case there was none left, emit an empty event
         if all.length == 0
-            options.selectlistener( { type: "deselected" } )
+            if options.lastselected
+                options.lastselected = null
+                options.selectlistener( { type: "deselected" } )
+
             return
+
 
 
         # Get best element
@@ -1207,11 +1212,12 @@ gaze.extension({
         # Make sure we have top element
         best = all[0]
 
+
         # Call with this element if it changed
-        if not options.lastselected or options.lastselected != best.element
+        if (not options.lastselected) or (best? and options.lastselected != best.element)
             options.selectlistener( { type: "selected", element: best.element } )
 
-        options.lastselected = best.element
+        if best? then options.lastselected = best.element
 
 
 
