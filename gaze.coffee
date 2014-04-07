@@ -1166,6 +1166,8 @@ gaze.extension({
         options.selectmap = {}
         options.selectlistener = listener
 
+        options.last = {}
+
         @ongazeover(elements, ext.selecthandler.bind(ext), options)
 }, {
     id: "select"
@@ -1189,21 +1191,24 @@ gaze.extension({
             if not map then continue
             if not map.selectover then continue
 
+            # This probability computations needs some improvements.
             map.element = element
             map.p = options.p(element)
-            map.likelihood = map.p * (options.selectradius - map.selectdistance)
+            map.reldist = (options.selectradius - map.selectdistance) / options.selectradius
+            map.likelihood = map.p * map.reldist
 
             all.push(map)
 
 
+        last = options.last
+
         # In case there was none left, emit an empty event
         if all.length == 0
-            if options.lastselected
-                options.lastselected = null
+            if last.selected
+                last.selected = null
                 options.selectlistener( { type: "deselected" } )
 
             return
-
 
 
         # Get best element
@@ -1214,10 +1219,11 @@ gaze.extension({
 
 
         # Call with this element if it changed
-        if (not options.lastselected) or (options.lastselected != best.element)
-            options.selectlistener( { type: "selected", element: best.element } )
-
-        options.lastselected = best.element
+        if (not last.element) or (last.element != best.element)
+            # TODO: Find better way to get to this magic threshold number
+            if not last.likelihood or best.likelihood > 1.3 * last.likelihood
+                options.selectlistener( { type: "selected", element: best.element } )
+                options.last = best
 
 
 
