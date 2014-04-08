@@ -1210,7 +1210,7 @@ gaze.extension({
         if all.length == 0
             if last.selected
                 last.selected = null
-                options.selectlistener( { type: "deselected" } )
+                options.selectlistener( { type: "deselected", options: options } )
 
             return
 
@@ -1225,7 +1225,7 @@ gaze.extension({
         if (not last.element) or (last.element != best.element)
             # TODO: Find better way to get to this magic threshold number
             if not last.likelihood or best.likelihood > 1.3 * last.likelihood
-                options.selectlistener( { type: "selected", element: best.element } )
+                options.selectlistener( { type: "selected", element: best.element, options: options } )
                 options.last = best
 
 
@@ -1292,14 +1292,16 @@ gaze.extension({
         options.dwellmap = {}
         options.dwelllistener = listener
 
-        @ongazeover(elements, ext.dwellhandler, options)
+        @onselect(elements, ext.dwellhandler, options)
 }, {
     id: "dwell"
-    depends: ["gazeover"]
+    depends: ["select"]
 
     dwellhandler: (event) ->
         element = event.element
         options = event.options
+
+        console.log(event)
 
         if not options.dwellmap[element.id]? then options.dwellmap[element.id] = {}
 
@@ -1310,21 +1312,22 @@ gaze.extension({
 
         # Function to call when dwell was activated
         activator = () ->
-            options.dwelllistener( {type:"activate", element: element, options: options} )
+            options.dwelllistener({ type:"activate", element: element, options: options })
             if options.dwellrepeat then dwellmap.timeout = setTimeout( activator, dwelltime )
 
 
-        if event.type == "over"
-            # TODO Gracefully handle out and over again (i.e., decay just a little)
-            if dwellmap.timeout? then clearTimeout(dwellmap.timeout)
+        # In any case something new was selected, clear all of these timeouts
+        for key, map of options.dwellmap
+            console.log(key, map)
+            if map.timeout
+                console.log("del")
+                clearTimeout(map.timeout)
+                delete map.timeout
 
+
+        if event.type == "selected"
             # TODO: See if there was residual time
             dwellmap.timeout = setTimeout( activator, dwelltime )
-
-
-        if event.type == "out"
-            if dwellmap.timeout then clearTimeout(dwellmap.timeout)
-            delete dwellmap.timeout
 })
 
 
