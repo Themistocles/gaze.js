@@ -1187,7 +1187,6 @@ gaze.extension({
         # Now compute for every element
         for element in elements
             map = selectmap[element.id]
-
             if not map then continue
 
             map.likelihood = 0 # Need to reset likelihood since otherwise the old value
@@ -1208,10 +1207,8 @@ gaze.extension({
 
         # In case there was none left, emit an empty event
         if all.length == 0
-            if last.selected
-                last.selected = null
-                options.selectlistener( { type: "deselected", options: options } )
-
+            if last.element then options.selectlistener( { type: "deselected", options: options, element: last.element } )
+            last.element = null
             return
 
 
@@ -1263,7 +1260,6 @@ gaze.extension({
         # If it was out, disregard it
         if event.type == "out"
             element = event.element
-
             map = selectmap[element.id]
             map.selectover = false
 })
@@ -1301,8 +1297,6 @@ gaze.extension({
         element = event.element
         options = event.options
 
-        console.log(event)
-
         if not options.dwellmap[element.id]? then options.dwellmap[element.id] = {}
 
         dwelltime = options.dwelltime
@@ -1318,9 +1312,7 @@ gaze.extension({
 
         # In any case something new was selected, clear all of these timeouts
         for key, map of options.dwellmap
-            console.log(key, map)
             if map.timeout
-                console.log("del")
                 clearTimeout(map.timeout)
                 delete map.timeout
 
