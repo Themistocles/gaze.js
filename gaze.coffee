@@ -1009,7 +1009,7 @@ gaze.extension({
         if not options.visibilitytest? then options.visibilitytest = false # if we should check if the element is actually visible
         if not options.transaction? then options.transaction = false # if we should also emit "begin" and "end" messages for events
         if not options.hittest? then options.hittest = false # if we should also emit "begin" and "end" messages for events
-        if not options.volatile? then options.volatile = false # if, when given by a CSS element selector, the content of the selector might change
+        if not options.volatile? then options.volatile = true # if, when given by a CSS element selector, the content of the selector might change
 
         elements = ext.prepareelements(elements, options)
 
@@ -1039,8 +1039,13 @@ gaze.extension({
             options.elementquery = elements
             elements = @gaze._document.querySelectorAll(elements)
 
-        if not elements.length # Our test to see if it is an array
-            elements = [elements]
+        else
+            if not elements.length # Our test to see if it is an array
+                elements = [elements]
+
+            # Can reset volatile flag since when not passed with a string, we
+            # don't need to be volatile anyway
+            options.volatile = false
 
         # Ensure all elements have IDs
         @gaze.id(element) for element in elements
@@ -1226,7 +1231,7 @@ gaze.extension({
 
         # In case there was none left, emit an empty event
         if all.length == 0
-            if last.element then options.selectlistener( { type: "deselected", options: options, element: last.element } )
+            if last.element then options.selectlistener( { type: "deselected", options: options, last: last.element } )
             last.element = null
             return
 
@@ -1241,7 +1246,7 @@ gaze.extension({
         if (not last.element) or (last.element != best.element)
             # TODO: Find better way to get to this magic threshold number
             if not last.likelihood or best.likelihood > 1.3 * last.likelihood
-                options.selectlistener( { type: "selected", element: best.element, options: options } )
+                options.selectlistener( { type: "selected", element: best.element, last: last.element, options: options } )
                 options.last = best
 
 
