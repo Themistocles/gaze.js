@@ -993,12 +993,6 @@ gaze.extension({
     ongazeover: (elements, listener, options) ->
         ext = @extension("gazeover")
 
-        if typeof elements == "string"
-            elements = @_document.querySelectorAll elements
-
-        if not elements.length # Our test to see if it is an array
-            elements = [elements]
-
         # Construct defaults
         if not options? then options = { }
         if not typeof options == "object" then throw "If third parameter is given to ongazeover, it needs to be a map."
@@ -1015,9 +1009,9 @@ gaze.extension({
         if not options.visibilitytest? then options.visibilitytest = false # if we should check if the element is actually visible
         if not options.transaction? then options.transaction = false # if we should also emit "begin" and "end" messages for events
         if not options.hittest? then options.hittest = false # if we should also emit "begin" and "end" messages for events
+        if not options.volatile? then options.volatile = false # if, when given by a CSS element selector, the content of the selector might change
 
-        # Ensure all elements have IDs
-        @id(element) for element in elements
+        elements = ext.prepareelements(elements, options)
 
         # We need this for internal handling
         options.gazeovermap = {}
@@ -1028,6 +1022,7 @@ gaze.extension({
 }, {
     id: "gazeover"
     depends: ["browser", "filtered", "fixation"]
+    gaze: null
 
     largestdistance: 100 # The largest distance to consider for over / out
 
@@ -1036,8 +1031,27 @@ gaze.extension({
         distances: {}
     }
 
+    ### Prepares new elements for handling ###
+    prepareelements: (elements, options) ->
+        options.elementquery = null
+
+        if typeof elements == "string"
+            options.elementquery = elements
+            elements = @gaze._document.querySelectorAll(elements)
+
+        if not elements.length # Our test to see if it is an array
+            elements = [elements]
+
+        # Ensure all elements have IDs
+        @gaze.id(element) for element in elements
+
+        return elements
+
+
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
+        module.gaze = gaze
+
         document = gaze.global.document
         removal = null
 
@@ -1065,6 +1079,11 @@ gaze.extension({
             # which will be unaffected by the re-layout triggered in handlers
             module._handlers.each (f) ->
                 elements = f[0]
+                options = f[2]
+
+                # If we are volatile, query for new elements here
+                if options.volatile and options.elementquery
+                    elements = @prepareelements
 
                 for e in elements
                     if not document.body.contains(e) then continue
