@@ -6,6 +6,8 @@ module.exports = function(grunt) {
     grunt.initConfig({
         pkg: grunt.file.readJSON('package.json'),
 
+        clean: ['dist'],
+
         // Compile coffeescript
         coffee: {
             compileWithMaps: {
@@ -47,7 +49,7 @@ module.exports = function(grunt) {
         copy: {
             main: {
                 files: [
-                    { expand: true, src: ['gaze.*.js'], dest: 'dist/', filter: 'isFile' },
+                    { expand: true, src: ['gaze*.js'], dest: 'dist/', filter: 'isFile' },
 
                     {
                         expand: true,
@@ -83,7 +85,7 @@ module.exports = function(grunt) {
                 },
 
                 src: 'dist/',
-                dest: '/www.gazeio.downloads/gaze.io',
+                dest: '/www.gazeio.downloads/gaze.js',
                 exclusions: ['gaze.xtra.js' ]
             },
 
@@ -111,8 +113,9 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-mkdir');
   grunt.loadNpmTasks('grunt-text-replace');
+  grunt.loadNpmTasks('grunt-contrib-clean');
 
   // Default task(s).
-  grunt.registerTask('default', ['coffee', 'replace', 'uglify', 'copy', 'ftp-deploy']);
+  grunt.registerTask('default', ['clean', 'coffee', 'replace', 'uglify', 'copy', 'ftp-deploy']);
 
 };
