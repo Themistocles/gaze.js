@@ -1083,7 +1083,7 @@ gaze.extension({
 
                 # If we are volatile, query for new elements here
                 if options.volatile and options.elementquery
-                    elements = @prepareelements
+                    elements = module.prepareelements(options.elementquery, options)
 
                 for e in elements
                     if not document.body.contains(e) then continue
