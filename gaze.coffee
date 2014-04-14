@@ -1149,7 +1149,7 @@ gaze.extension({
                             callback {type:"over", element: e, distance: distance, gazewindow: p.window, options: options}
                             gazeovermap[id] = true
 
-                    else if gazeovermap[id]
+                    else if gazeovermap[id] and distance > options.radiusout
                             callback {type:"out", element: e, distance: distance, gazewindow: p.window, options: options}
                             gazeovermap[id] = false
 
@@ -1184,13 +1184,14 @@ gaze.extension({
         options.hittest = false
         options.continueover = true # Have to be continuous since we need updated distances
         options.radiusover = options.selectradius
-        options.radiusout = options.selectradius
+        options.radiusout = options.selectradius + 30
 
         # Add our own helper map for all elements we consider
         options.selectmap = {}
         options.selectlistener = listener
 
-        options.last = {}
+        # Last element we have selected
+        options.last = null # {}
 
         @ongazeover(elements, ext.selecthandler.bind(ext), options)
 }, {
@@ -1227,26 +1228,29 @@ gaze.extension({
             all.push(map)
 
 
-        last = options.last
-
-        # In case there was none left, emit an empty event
+        # In case there was none left, we have to stop.
         if all.length == 0
-            if last.element then options.selectlistener( { type: "deselected", options: options, last: last.element } )
-            last.element = null
-            return
 
+            # Only send deselect if an element was selected
+            if options.last then options.selectlistener( { type: "deselected", options: options, last: options.last.element } )
+
+            options.last = null
+            return
 
         # Get best element
         all.sort (a, b) -> return b.likelihood - a.likelihood
 
         # Make sure we have top element
         best = all[0]
+        last = options.last
 
-        # Call with this element if it changed
-        if (not last.element) or (last.element != best.element)
+        # In case there was no last, or it differs from the current one
+        if (not last?) or (last.element.id != best.element.id)
+
             # TODO: Find better way to get to this magic threshold number
-            if not last.likelihood or best.likelihood > 1.3 * last.likelihood
-                options.selectlistener( { type: "selected", element: best.element, last: last.element, options: options } )
+            if (not last?) or (not last.likelihood) or (best.likelihood > 1.3 * last.likelihood)
+                lastelement = if last? then last.element else null
+                options.selectlistener( { type: "selected", element: best.element, last: lastelement, options: options } )
                 options.last = best
 
 
@@ -1321,12 +1325,8 @@ gaze.extension({
         element = event.element
         options = event.options
 
-        if not options.dwellmap[element.id]? then options.dwellmap[element.id] = {}
-
-        dwelltime = options.dwelltime
-        dwellmap = options.dwellmap[element.id]
-
         now = Date.now()
+
 
         # Function to call when dwell was activated
         activator = () ->
@@ -1341,7 +1341,13 @@ gaze.extension({
                 delete map.timeout
 
 
+        # In case a new element was selected, start timer
         if event.type == "selected"
+            if not options.dwellmap[element.id]? then options.dwellmap[element.id] = {}
+
+            dwelltime = options.dwelltime
+            dwellmap = options.dwellmap[element.id]
+
             # TODO: See if there was residual time
             dwellmap.timeout = setTimeout( activator, dwelltime )
 })
