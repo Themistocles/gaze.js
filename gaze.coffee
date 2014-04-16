@@ -1127,6 +1127,7 @@ gaze.extension({
                 # If we are volatile, query for new elements here
                 if options.volatile and options.elementquery
                     elements = module.prepareelements(options.elementquery, options)
+                    f[0] = elements # Also update the actual original elements
 
                 for e in elements
                     if not document.body.contains(e) then continue
