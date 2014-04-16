@@ -512,7 +512,6 @@ gaze.extension({
 
 
 
-
 ### BROWSER ###
 gaze.extension({
     ### Returns the browser ID ###
@@ -893,6 +892,51 @@ gaze.extension({
 
         # Called when the first handler was added or removed
         module._handlers.onpopulated = () -> removal = gaze.onframe func
+        module._handlers.onempty = () -> removal.remove()
+})
+
+
+
+
+
+### PRESENCE ###
+gaze.extension({
+    ### Adds a raw listener and returns a removal handle ###
+    onpresence: (listener) ->
+        ext = @extension("presence")
+        ext._handlers.add listener
+}, {
+    id: "presence"
+
+    ### Initialize this module ###
+    init: (gaze, module) ->
+        module._handlers = gaze.handlers()
+        removal = null
+
+        ispresent = false
+        timer = null
+
+        absent = () ->
+            module._handlers.invoke( { type: "absent" } )
+            ispresent = false
+
+
+        func = (packet) ->
+            # In case we don't have the focus, we don't do anything
+            if not gaze.isactive() then return
+
+            if not ispresent
+                console.log(122)
+                module._handlers.invoke( { type: "present" } )
+                ispresent = true
+
+            if timer
+                clearTimeout(timer)
+
+            timer = setTimeout( absent, 1000 )
+
+        # Called when the first handler was added or removed
+        module._handlers.onpopulated = () -> removal = gaze.onfiltered func
         module._handlers.onempty = () -> removal.remove()
 })
 
@@ -1437,6 +1481,8 @@ gaze.connectors = {
                     windowdist: 0
                 }
             }
+
+
 
         document.addEventListener('mousemove', motion);
         timer = setInterval tick, 30
