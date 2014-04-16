@@ -916,24 +916,18 @@ gaze.extension({
         ispresent = false
         timer = null
 
-        absent = () ->
-            module._handlers.invoke( { type: "absent" } )
-            ispresent = false
-
-
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
             if not gaze.isactive() then return
 
-            if not ispresent
-                console.log(122)
+            if not packet.valid and ispresent
+                module._handlers.invoke( { type: "absent" } )
+                ispresent = false
+
+            if packet.valid and not ispresent
                 module._handlers.invoke( { type: "present" } )
                 ispresent = true
 
-            if timer
-                clearTimeout(timer)
-
-            timer = setTimeout( absent, 1000 )
 
         # Called when the first handler was added or removed
         module._handlers.onpopulated = () -> removal = gaze.onfiltered func
