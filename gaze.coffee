@@ -613,7 +613,7 @@ gaze.extension({
         return false
 
     ### Notify user with a bubble ###
-    notifiybubble: (string, config) ->
+    notifybubble: (string, config) ->
         document = global.document
 
         note = document.createElement "div"
@@ -627,19 +627,21 @@ gaze.extension({
         note.style.fontFamily = "Helvetica"
         note.style.fontSize = "10pt"
         note.style.opacity = "1"
-        #note.style.transition = 'opacity 0.3s, right 0.3s'
         note.style.border = '1px solid #555'
         note.style.borderRadius = '5px'
         note.style.zIndex = "99999999"
 
         links = ""
 
-        if config and config.links
+        if config config.links
             links = "<br/><br/>"
             for link in config.links
                 links += """<a style='color:#4da6ff; text-decoration: none;'
                     onclick="window.open('""" + link.url + """', 'helper')"
                     href=''>&raquo; """ + link.text + "</a><br/>"
+
+        #if config and config.priority
+
 
         note.innerHTML = """
         <div onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
@@ -649,7 +651,7 @@ gaze.extension({
             """ + string + links +  """
             </div>
         </div>"""
-        document.body.appendChild note
+        document.body.appendChild(note)
 
         setTimeout(
             () ->
@@ -807,7 +809,7 @@ gaze.extension({} , {
             if problem.id == "I_MOUSEFALLBACK"
                 config.links[0].text = "Have a tracker or need help?"
 
-            gaze.notifiybubble(problem.message, config)
+            gaze.notifybubble(problem.message, config)
 
 
         # Put this in here at the moment. Might need to find a better place.
@@ -818,7 +820,7 @@ gaze.extension({} , {
             message.parentNode.removeChild(message)
 
         module.handlerblur = (e) ->
-            message = gaze.notifiybubble("The document has lost focus. Eye tracking data will not be processed at the moment.")
+            message = gaze.notifybubble("The document has lost focus. Eye tracking data will not be processed at the moment.")
 
         # Setup non-focus handler
         global.addEventListener('focus', module.handlerfocus);
