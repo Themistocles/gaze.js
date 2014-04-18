@@ -89,7 +89,7 @@ handlers.prototype = {
         # Construct removal handle
         handle = {
             handler: x
-            remove: () -> that.remove this.handler
+            remove: () -> that.remove(this.handler)
         }
 
         # If old size was 0, we are populated now
@@ -282,20 +282,27 @@ gaze.extension = (fns, module) ->
 ### Core methods ###
 gaze.fn = gaze.prototype = {
     ### Initializes object and connects to an eye tracker ###
-    init: (@url) ->
-        if @_initialized then deinit()
+    init: (@url, backend = "relay") ->
+        if @_initialized then @deinit()
 
         # Initialize extensions in proper order
         for id in extensionorder
             module = extensions[id]
 
+            console.log(module.id, @);
             if module.init then module.init @, module
 
+        # From this point on all extensions should be loaded. Including all gaze
+        # provider plugins
         gaze = @
         wasconnected = false
-        connector = gaze.connectors["relay"]
 
-        frame = (frame) -> gaze.frame frame
+
+        # Get the requested backend
+        @_backend = @extension("backend." + backend)
+
+        # Status function called back when something happened
+        frame = @frame.bind(@) # need this to bind gaze.frame to this since we pass it away
         status = (event) ->
             if event.type == "open"
                 wasconnected = true
@@ -305,20 +312,20 @@ gaze.fn = gaze.prototype = {
                 else
                     gaze.problem("I_MOUSEFALLBACK")
 
-                    connector = gaze.connectors["mouse"]
-                    gaze._tracker = connector(url, status, frame)
+                    # Get mouse backend and initialize it instead
+                    gaze._backend = gaze.extension("backend.mouse")
+                    gaze._backend.connect(url, status, frame)
 
             if event.type == "error"
                 if wasconnected
                     console.log event
 
-
-        # Next initialize the eye tracker, or at least try
-        @_tracker = connector(url, status, frame)
+        # Next initialize the eye tracker, or at least try to ...
+        @_backend.connect(url, status, frame)
         @_initialized = true
 
-        # Push empty frame as a hack to wake up watchdog
-        frame {}
+        # Push an empty frame as a hack to wake up the watchdog
+        @frame({})
 
 
     ### Informs registered listeners about a problem ###
@@ -467,9 +474,9 @@ gaze.extension({} , {
         gaze.onframe () ->
             # If this was the first frame, set up watchdog
             if not module.framecount++
-                module.watchdog = setInterval check, 1500
+                module.watchdog = setInterval(check, 1500)
 
-    deinit: (gaze, module) -> clearInterval module.watchdog
+    deinit: (gaze, module) -> clearInterval(module.watchdog)
 })
 
 
@@ -876,7 +883,7 @@ gaze.extension({
             frame.filtered = {}
 
         # And eventually convert to local coordinate system
-        gaze.updategeometry frame.filtered
+        gaze.updategeometry(frame.filtered)
 
 
 
@@ -1393,57 +1400,51 @@ gaze.extension({
 
 
 
-
-
-### TRACKER MOUSE ###
+### TRACKER RELAY ###
 gaze.extension({} , {
-    id: "tracker.mouse"
+    id: "backend.relay"
 
+
+    connect: (url, status, frame) ->
+        url = "ws://127.0.0.1:44042" if not url?
+
+        i = 0
+
+        @socket = new WebSocket(url)
+        @socket.onerror = status
+        @socket.onopen = status
+        @socket.onclose = status
+        @socket.onmessage = (evt) -> frame JSON.parse(evt.data)
+
+
+    close: () ->
+        @socket.close()
 })
 
 
 
 
+### TRACKER MOUSE ###
+gaze.extension({} , {
+    id: "backend.mouse"
 
-### Connectors we use as backends ###
-gaze.connectors = {
-    "relay": (url, status, frame) ->
-        url = "ws://127.0.0.1:44042" if not url?
 
-        i = 0
-        socket = new WebSocket(url)
-        socket.onerror = status
-        socket.onopen = status
-        socket.onclose = status
-        socket.onmessage = (evt) -> frame JSON.parse(evt.data)
+    connect: (url, status, frame) ->
+        last = null; timer = null; number = 0;
 
-        return {
-            tracker: null
-            type: "relay"
-            frameinfo: {
-                filtered: {
-
-                }
-            }
-            deinit: () -> socket.close()
-        }
-
-    "mouse": (url, status, frame) ->
-        last = null; timer = null
-        number = 0
-
-        # Inform that we have some problems ...
+        # Inform that we have some problems with Chrome and mouse emulation ...
         if !!global.chrome then console.log("""Please note that the mouse emulation sometimes
             does not generate positions properly on scrolled pages in
             Chrome. See https://github.com/gazeio/gaze.js/issues/7.""")
 
-        motion = (e) -> last = e
-        tick = () ->
 
+        # Called every few milliseconds to push new gaze data throughout the system
+        tick = () ->
             w = if last then new vector(last.clientX, last.clientY) else new vector(2).zeros()
             w.add(new vector(2).rand().add(-0.5).mul(20))
 
             frame {
+
                 # Single latest raw event
                 raw: {
                     left: {
@@ -1477,27 +1478,19 @@ gaze.connectors = {
                 }
             }
 
+        document.addEventListener('mousemove', (e) -> last = e);
+
+        @timer = setInterval(tick, 30)
 
 
-        document.addEventListener('mousemove', motion);
-        timer = setInterval tick, 30
+    close: () ->
+        clearInterval @timer
+})
 
-        return {
-            tracker: null
-            type: "mouse"
-            frameinfo: {
-                filtered: {
-
-                }
-            }
-            deinit: () -> clearInterval timer
-        }
-}
 
 
 ### Set global object ###
 global.gaze = new gaze(global)
-global.gaze.connectors = gaze.connectors
 
 
 
