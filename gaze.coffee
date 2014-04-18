@@ -882,7 +882,7 @@ gaze.extension({
     ### Adds a raw listener and returns a removal handle ###
     onraw: (listener) ->
         ext = @extension("raw")
-        ext._handlers.add listener
+        ext._handlers.add(listener)
 }, {
     id: "raw"
 
@@ -894,10 +894,10 @@ gaze.extension({
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
             if not gaze.active() then return
-            module._handlers.invoke packet.raw
+            module._handlers.invoke(packet.raw)
 
         # Called when the first handler was added or removed
-        module._handlers.onpopulated = () -> removal = gaze.onframe func
+        module._handlers.onpopulated = () -> removal = gaze.onframe(func)
         module._handlers.onempty = () -> removal.remove()
 })
 
@@ -945,7 +945,7 @@ gaze.extension({
             module._handlers.invoke packet.filtered
 
         # Called when the first handler was added or removed
-        module._handlers.onpopulated = () -> removal = gaze.onframe func
+        module._handlers.onpopulated = () -> removal = gaze.onframe(func)
         module._handlers.onempty = () -> removal.remove()
 })
 
@@ -984,7 +984,7 @@ gaze.extension({
 
 
         # Called when the first handler was added or removed
-        module._handlers.onpopulated = () -> removal = gaze.onfiltered func
+        module._handlers.onpopulated = () -> removal = gaze.onfiltered(func)
         module._handlers.onempty = () -> removal.remove()
 })
 
@@ -1024,7 +1024,7 @@ gaze.extension({
 
         # Check how far away we are
         distance = gaze.distance(currentfixation._center, point)
-        if isNaN distance then distance = 999999
+        if isNaN(distance) then distance = 999999
 
         # If we have an outlier ...
         if distance > this.radiusthreshold
@@ -1045,7 +1045,7 @@ gaze.extension({
 
         # And call our handler
         this.currentfixation.type = "continue"
-        continuedfixation this.currentfixation
+        continuedfixation(this.currentfixation)
 
 
 
@@ -1058,10 +1058,10 @@ gaze.extension({
             frame.fixation = fixation
             frame.fixation.screen = [fixation._center[0], fixation._center[1]]
 
-            gaze.updategeometry frame.fixation
+            gaze.updategeometry(frame.fixation)
 
             # Eventually call handlers
-            module._handlers.invoke frame.fixation
+            module._handlers.invoke(frame.fixation)
 
         continuedfixation = (fixation) ->
             # Called when a fixation was continued
