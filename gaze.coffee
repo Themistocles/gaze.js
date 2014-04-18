@@ -289,7 +289,6 @@ gaze.fn = gaze.prototype = {
         for id in extensionorder
             module = extensions[id]
 
-            console.log(module.id, @);
             if module.init then module.init @, module
 
         # From this point on all extensions should be loaded. Including all gaze
@@ -454,6 +453,23 @@ gaze.fn = gaze.prototype = {
 
 
 
+
+### DEBUG ###
+gaze.extension({
+
+    ### Enables debugging ###
+    debug: () ->
+        # Go through all extensions and call the debug method on them
+        for id in extensionorder
+            module = extensions[id]
+
+            if module.debug then module.debug()
+    } , {
+
+    id: "debug"
+})
+
+
 ### WATCHDOG ###
 gaze.extension({} , {
     id: "watchdog"
@@ -479,6 +495,8 @@ gaze.extension({} , {
 
     deinit: (gaze, module) -> clearInterval(module.watchdog)
 })
+
+
 
 
 
@@ -757,7 +775,7 @@ gaze.extension({
         module.windowoffset[0] = parseInt(gaze.storage("_gaze_windowoffsetx")) or 0
         module.windowoffset[1] = parseInt(gaze.storage("_gaze_windowoffsety")) or 0
 
-        global.document.addEventListener 'click', @click.bind(@)
+        document.addEventListener 'click', @click.bind(@)
 
         # Actual value converter
         rx = (p, x, y) -> return x
@@ -905,6 +923,9 @@ gaze.extension({
         # And eventually convert to local coordinate system
         gaze.updategeometry(frame.filtered)
 
+
+    ### Called when we should show debug information ###
+    debug: () ->
 
 
     ### Initialize this module ###
@@ -1361,8 +1382,6 @@ gaze.extension({
 
 
 
-
-
 ### DWELL ###
 gaze.extension({
     ondwell: (elements, listener, options) ->
@@ -1427,15 +1446,15 @@ gaze.extension({} , {
     framecount: 0
 
     problems: {
-        "W_RELAYCLOSED": {
+        "E_RELAYCLOSED": {
             message: "We connected to the eye tracker but it closed the connection right away. Looks
             like we are being denied due to privacy settings."
-            type: "warning"
+            type: "error"
         }
 
-        "W_RELAYCLOSEDLOCAL": {
-            message: "Detected we are running from the local file system. You probably forgot to enable Developer Mode in your EyeX settings."
-            type: "warning"
+        "E_RELAYCLOSEDLOCAL": {
+            message: "Detected we are running from the local file system but the relay rejected us. You probably forgot to enable Developer Mode in your EyeX settings."
+            type: "error"
             priority: "high"
         }
     }
@@ -1454,8 +1473,8 @@ gaze.extension({} , {
         # this might be an (EyeX local) permission thing
         close = (event) ->
             if that.framecount < 3 and opened
-                if global.document.URL.indexOf("file://") == 0 then that.gaze.problem("W_RELAYNODEVMODE")
-                else that.gaze.problem("W_RELAYDENIED")
+                if global.document.URL.indexOf("file://") == 0 then that.gaze.problem("E_RELAYCLOSEDLOCAL")
+                else that.gaze.problem("E_RELAYCLOSED")
 
             status(event)
 
@@ -1532,7 +1551,9 @@ gaze.extension({} , {
                 }
             }
 
-        document.addEventListener('mousemove', (e) -> last = e);
+
+        document.addEventListener('mousemove', (e) -> last = e)
+        document.body.addEventListener('touchstart', (e) -> last = e.changedTouches[0]) # We also need the click for touch devices
 
         @timer = setInterval(tick, 30)
 
