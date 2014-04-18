@@ -669,12 +669,10 @@ gaze.extension({
                     onclick="window.open('""" + link.url + """', 'helper')"
                     href=''>&raquo; """ + link.text + "</a><br/>"
 
-        priority = ""
 
         # Make messages with high priority really visible
         if config and config.priority and config.priority == "high"
             note.style.background = """repeating-linear-gradient(-55deg, #000, #000 10px, #440 10px, #440 20px)"""
-
 
         note.innerHTML = """
         <div style="position: relative;" onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
@@ -686,12 +684,6 @@ gaze.extension({
         </div>"""
 
         container.appendChild(note)
-
-        setTimeout(
-            () ->
-                note.style.opacity = "1"
-                note.style.right = "50px"
-            ,1)
 
         return note
 
