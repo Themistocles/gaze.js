@@ -308,7 +308,8 @@ gaze.fn = gaze.prototype = {
                 wasconnected = true
 
             if event.type == "close"
-                if wasconnected then gaze.problem("E_CONNECTIONCLOSED")
+                if wasconnected # In case we were connected, check what we know
+                    gaze.problem("E_CONNECTIONCLOSED")
                 else
                     gaze.problem("I_MOUSEFALLBACK")
 
@@ -616,8 +617,9 @@ gaze.extension({
     notifybubble: (string, config) ->
         document = global.document
 
+        # Get or create out notification container
         container = document.getElementById("gionotifycontainer")
-        console.log(container)
+
         if not container
             container = document.createElement("div")
             container.id = "gionotifycontainer"
@@ -625,9 +627,9 @@ gaze.extension({
             container.style.top = "10px"
             container.style.right = "10px"
             container.style.zIndex = "99999999"
-
             document.body.appendChild(container)
 
+        # And create the actual bubble
         note = document.createElement("div")
         note.style.padding = "20px"
         note.style.color = "white"
@@ -649,11 +651,15 @@ gaze.extension({
                     onclick="window.open('""" + link.url + """', 'helper')"
                     href=''>&raquo; """ + link.text + "</a><br/>"
 
-        #if config and config.priority
+        priority = ""
+
+        # Make messages with high priority really visible
+        if config and config.priority and config.priority == "high"
+            note.style.background = """repeating-linear-gradient(-55deg, #000, #000 10px, #440 10px, #440 20px)"""
 
 
         note.innerHTML = """
-        <div style='position: relative;' onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
+        <div style="position: relative;" onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
             <img style='position:absolute; top: -7px; left:-10px;
                 padding-right:5px; padding-bottom:3px;' width='20px' src='http://downloads.gaze.io/api/logo.mini.png'>
             <div style='position:relative; left:18px; top:-8px; padding-right:10px;'>
@@ -807,13 +813,15 @@ gaze.extension({} , {
             config.links = []
 
             config.links.push {
-                url: "http://gaze.io/faq/#" + problem.id
+                url: "http://gaze.io/faq/?" + problem.id
                 text: "Get more help"
             }
 
             # Only bubble for some messages
             if not (problem.type == "warning" or problem.type == "error" or problem.id == "I_MOUSEFALLBACK")
                 return
+
+            if problem.priority then config.priority = problem.priority
 
             # Special handling for I_MOUSEFALLBACK
             if problem.id == "I_MOUSEFALLBACK"
@@ -1416,18 +1424,52 @@ gaze.extension({
 gaze.extension({} , {
     id: "backend.relay"
 
+    framecount: 0
+
+    problems: {
+        "W_RELAYCLOSED": {
+            message: "We connected to the eye tracker but it closed the connection right away. Looks
+            like we are being denied due to privacy settings."
+            type: "warning"
+        }
+
+        "W_RELAYCLOSEDLOCAL": {
+            message: "Detected we are running from the local file system. You probably forgot to enable Developer Mode in your EyeX settings."
+            type: "warning"
+            priority: "high"
+        }
+    }
+
+
+    ### Store gaze object for handler ###
+    init: (gaze) -> @gaze = gaze
 
     connect: (url, status, frame) ->
         url = "ws://127.0.0.1:44042" if not url?
+        that = @
 
-        i = 0
+        i = 0; opened = false
+
+        # If we receive a close after a short open, notify that
+        # this might be an (EyeX local) permission thing
+        close = (event) ->
+            if that.framecount < 3 and opened
+                if global.document.URL.indexOf("file://") == 0 then that.gaze.problem("W_RELAYNODEVMODE")
+                else that.gaze.problem("W_RELAYDENIED")
+
+            status(event)
+
+        open = (event) ->
+            opened = true
+            status(event)
 
         @socket = new WebSocket(url)
         @socket.onerror = status
-        @socket.onopen = status
-        @socket.onclose = status
-        @socket.onmessage = (evt) -> frame JSON.parse(evt.data)
-
+        @socket.onopen = open
+        @socket.onclose = close
+        @socket.onmessage = (evt) ->
+            that.framecount++
+            frame JSON.parse(evt.data)
 
     close: () ->
         @socket.close()
