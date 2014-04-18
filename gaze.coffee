@@ -616,10 +616,19 @@ gaze.extension({
     notifybubble: (string, config) ->
         document = global.document
 
-        note = document.createElement "div"
-        note.style.position = "fixed"
-        note.style.top = "10px"
-        note.style.right = "-250px"
+        container = document.getElementById("gionotifycontainer")
+        console.log(container)
+        if not container
+            container = document.createElement("div")
+            container.id = "gionotifycontainer"
+            container.style.position = "fixed"
+            container.style.top = "10px"
+            container.style.right = "10px"
+            container.style.zIndex = "99999999"
+
+            document.body.appendChild(container)
+
+        note = document.createElement("div")
         note.style.padding = "20px"
         note.style.color = "white"
         note.style.background = "#333"
@@ -629,11 +638,11 @@ gaze.extension({
         note.style.opacity = "1"
         note.style.border = '1px solid #555'
         note.style.borderRadius = '5px'
-        note.style.zIndex = "99999999"
+        note.style.marginBottom = "4px"
 
         links = ""
 
-        if config config.links
+        if config and config.links
             links = "<br/><br/>"
             for link in config.links
                 links += """<a style='color:#4da6ff; text-decoration: none;'
@@ -644,14 +653,15 @@ gaze.extension({
 
 
         note.innerHTML = """
-        <div onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
-            <img style='position:absolute; top: 10px; left:10px;
+        <div style='position: relative;' onclick='this.parentNode.parentNode.removeChild(this.parentNode);'>
+            <img style='position:absolute; top: -7px; left:-10px;
                 padding-right:5px; padding-bottom:3px;' width='20px' src='http://downloads.gaze.io/api/logo.mini.png'>
             <div style='position:relative; left:18px; top:-8px; padding-right:10px;'>
             """ + string + links +  """
             </div>
         </div>"""
-        document.body.appendChild(note)
+
+        container.appendChild(note)
 
         setTimeout(
             () ->
