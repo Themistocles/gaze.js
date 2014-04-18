@@ -66,7 +66,7 @@ problems = {
     }
 
     "I_MOUSEFALLBACK": {
-        message: "No eye tracker was found on your system. We will fall back to mouse emulation."
+        message: "No eye tracker was found on your system. We will fall back to mouse / touchscreen emulation."
         type: "info"
     }
 }
@@ -239,6 +239,7 @@ gaze = (@global) ->
     @_onframeconfig = new handlers()
     @_onproblem = new handlers()
     @_currentframe = {}
+    @_active = "default"
     return @
 
 
@@ -382,8 +383,9 @@ gaze.fn = gaze.prototype = {
 
     ### Returns true if gaze handling should be performed (e.g., window in
     focus / foreground) ###
-    isactive: () -> true
-
+    active: (value) ->
+        if value? then @_active = value
+        return @_active
 
     ### Returns the distance of a point and a rect or two points. ###
     distance: (x, y, rx, ry, rw, rh) ->
@@ -592,8 +594,6 @@ gaze.extension({
     ### Converts a screen pixel position to a window position ###
     screen2window: (x, y) -> return [x, y] # Is overriden in module.init()!
 
-    ### Override the isactive method ###
-    isactive: () -> global.document.hasFocus()
 
     ### Returns a new ID or make sure we have one ###
     id: (element) ->
@@ -765,7 +765,20 @@ gaze.extension({
 
 
     init: (gaze, module) ->
-        module._gaze = gaze
+        module._gaze =
+
+        # "Override" active method of gaze object
+        _active = gaze.active.bind(gaze)
+
+        active: (value) ->
+            if value? then return _active(value)
+            value = _active()
+
+            if value == true then return true
+            if value == false then return false
+
+            # This assumes value == "default"
+            return global.document.hasFocus()
 
         document = global.document
 
@@ -856,7 +869,8 @@ gaze.extension({} , {
             message.parentNode.removeChild(message)
 
         module.handlerblur = (e) ->
-            message = gaze.notifybubble("The document has lost focus. Eye tracking data will not be processed at the moment.")
+            if gaze.active() == "default"   # Only display the message if we were in default mode
+                message = gaze.notifybubble("The document has lost focus. Eye tracking data will not be processed at the moment.")
 
         # Setup non-focus handler
         global.addEventListener('focus', module.handlerfocus);
@@ -887,7 +901,7 @@ gaze.extension({
 
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
-            if not gaze.isactive() then return
+            if not gaze.active() then return
             module._handlers.invoke packet.raw
 
         # Called when the first handler was added or removed
@@ -935,7 +949,7 @@ gaze.extension({
 
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
-            if not gaze.isactive() then return
+            if not gaze.active() then return
             module._handlers.invoke packet.filtered
 
         # Called when the first handler was added or removed
@@ -966,7 +980,7 @@ gaze.extension({
 
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
-            if not gaze.isactive() then return
+            if not gaze.active() then return
 
             if not packet.valid and ispresent
                 module._handlers.invoke( { type: "absent" } )
@@ -1148,7 +1162,7 @@ gaze.extension({
 
         func = (p) ->
             # In case we don't have the focus, we don't do anything
-            if not gaze.isactive() then return
+            if not gaze.active() then return
             if not p.window then return
 
             # Get the scale factor since the user might have zoomed in or out
