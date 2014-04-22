@@ -37,6 +37,7 @@ global = window
 # Make backup of previous gaze object if there was any
 _gaze = global.gaze
 
+
 # Extensions that have been registered
 extensions = {}
 extensionorder = [] # order in which to initialize ["raw", "filtered", "dwell", ...]
@@ -1119,6 +1120,8 @@ gaze.extension({
                 hit: (e) -> true
                 visible: (e) -> true
             }
+
+        # Or if we are in element mode
         else
             hittest = @hittest
 
@@ -1215,6 +1218,7 @@ gaze.extension({
                 elements = f[0]
                 options = f[2]
                 fn = options.elementfn
+
 
                 # If we are volatile, query for new elements here
                 if options.volatile and options.elementquery
@@ -1447,22 +1451,32 @@ gaze.extension({
         options.dwellmap = {}
         options.dwelllistener = listener
 
-        @onselect(elements, ext.dwellhandler, options)
+        @onselect(elements, ext.dwellhandler.bind(ext), options)
 }, {
     id: "dwell"
     depends: ["select"]
 
+    last: null
+
     dwellhandler: (event) ->
-        element = event.element
+        that = @
         options = event.options
+        element = event.element
 
         now = Date.now()
 
 
         # Function to call when dwell was activated
         activator = () ->
-            options.dwelllistener({ type:"activate", element: element, options: options })
+            options.dwelllistener({ type: "selected", element: element, last: that.last, options: options })
             if options.dwellrepeat then dwellmap.timeout = setTimeout( activator, dwelltime )
+            that.last = element
+
+        # Function called when user leaves any dwellable element
+        deacivator = () ->
+            if that.last == null then return
+            options.dwelllistener({ type: "deselected", last: that.last, options: options })
+            that.last = null
 
 
         # In any case something new was selected, clear all of these timeouts
@@ -1481,6 +1495,8 @@ gaze.extension({
 
             # TODO: See if there was residual time
             dwellmap.timeout = setTimeout( activator, dwelltime )
+
+        if event.type == "deselected" then deacivator()
 })
 
 
