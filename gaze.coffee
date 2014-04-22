@@ -1107,8 +1107,7 @@ gaze.extension({
 
         options.gazeovermap = {} # Stores attributes to elements
         options.elementfn = {} # Stores functions to call on for elements
-
-
+        options.elementquery = elements # The original element query
 
         body = gaze.global.document.body
 
@@ -1116,9 +1115,10 @@ gaze.extension({
         if elements.elements
             options.elementfn = {
                 contains: (e) -> true
-                bounds: (e) ->
+                bounds: (e) -> elements.bounds(e.id)
+                hit: (e) -> true
+                visible: (e) -> true
             }
-
         else
             hittest = @hittest
 
@@ -1130,11 +1130,11 @@ gaze.extension({
             }
 
         # Make sure all elements are in canonical format
-        elements = ext.prepareelements(elements, options)
+        canonical = ext.prepareelements(elements, options)
 
         # Store largest distance and handlers
         ext.largestdistance = Math.max(ext.largestdistance, options.radiusout, options.radiusover)
-        ext._handlers.add [elements, listener, options]
+        ext._handlers.add [canonical, listener, options]
 }, {
     id: "gazeover"
     depends: ["browser", "filtered", "fixation"]
@@ -1155,14 +1155,13 @@ gaze.extension({
         # we have elements given in "canvas" mode
         if elements.elements
             _elements = []
-            _elements.push( {"id": id} ) for id in elements.elements
+            _elements.push( {"id": id} ) for id in elements.elements()
             elements = _elements
 
         # In this case we have normal elements
         else
             # Next check if a query selector was given
             if typeof elements == "string"
-                options.elementquery = elements
                 elements = @gaze._document.querySelectorAll(elements)
 
             # Okay, now we just have normal elements, one or many
