@@ -291,7 +291,7 @@ gaze.fn = gaze.prototype = {
         for id in extensionorder
             module = extensions[id]
 
-            if module.init then module.init @, module
+            if module.init then module.init(@, module)
 
         # From this point on all extensions should be loaded. Including all gaze
         # provider plugins
@@ -320,7 +320,7 @@ gaze.fn = gaze.prototype = {
 
             if event.type == "error"
                 if wasconnected
-                    console.log event
+                    console.log(event)
 
         # Next initialize the eye tracker, or at least try to ...
         @_backend.connect(url, status, frame)
@@ -334,20 +334,20 @@ gaze.fn = gaze.prototype = {
     problem: (id) ->
         problem = problems[id] or { message: id }
         problem.id = id
-        @_onproblem.invoke problem
+        @_onproblem.invoke(problem)
 
     ### The global object where this was bound to ###
     global: global
 
     ### Register handler called when there was a problem ###
-    onproblem: (handler) -> @_onproblem.add handler
+    onproblem: (handler) -> @_onproblem.add(handler)
 
     ### Deinitializes this object, can be used again afterwards. ###
     deinit: () ->
         @_tracker.deinit()
 
         for id, module of extensions
-            if module.deinit then module.deinit @, module
+            if module.deinit then module.deinit(@, module)
 
         @_initialized = false
 
@@ -471,6 +471,7 @@ gaze.extension({
 
     id: "debug"
 })
+
 
 
 ### WATCHDOG ###
@@ -961,34 +962,47 @@ gaze.extension({
     ### Adds a raw listener and returns a removal handle ###
     onpresence: (listener) ->
         ext = @extension("presence")
-        ext._handlers.add listener
+        ext._handlers.add(listener)
 }, {
     id: "presence"
 
     ### Initialize this module ###
     init: (gaze, module) ->
         module._handlers = gaze.handlers()
-        removal = null
-
+        lastseen = Date.now()
         ispresent = false
-        timer = null
+
+        # Checks if we are absent
+        absencechecker = () ->
+            elapsed = Date.now() - lastseen
+
+            # TODO: Make threshold non-magical
+            if lastseen > 1500 and ispresent
+                module._handlers.invoke( { type: "absent" } )
+                ispresent = false
+
+        @_timer = setInterval(absencechecker, 1000)
 
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
             if not gaze.active() then return
 
-            if not packet.valid and ispresent
-                module._handlers.invoke( { type: "absent" } )
-                ispresent = false
+            if packet.valid
+                lastseen = Date.now()
 
-            if packet.valid and not ispresent
-                module._handlers.invoke( { type: "present" } )
-                ispresent = true
+                if not ispresent
+                    module._handlers.invoke( { type: "present" } )
+                    ispresent = true
+            else ispresent = false
+
 
 
         # Called when the first handler was added or removed
         module._handlers.onpopulated = () -> removal = gaze.onfiltered(func)
         module._handlers.onempty = () -> removal.remove()
+
+
+    deinit: (gaze, module) -> clearInterval(module._timer)
 })
 
 
@@ -1225,17 +1239,21 @@ gaze.extension({
                     elements = module.prepareelements(options.elementquery, options)
                     f[0] = elements # Also update the actual original elements
 
+                # Check for every element if it should be processed later
                 for e in elements
+
+                    # If it is not contained in the parent anymore, skip it anyway
                     if not fn.contains(e) then continue
+
                     id = e.id
 
                     # If the element already has a distance, assume we moved closer by gaze delta
+                    # no matter what ...
                     if distances[id]
                         distances[id] -= gazemoved
 
                         # If now we are within the critical radius, query it again
-                        if distances[id] < module.largestdistance
-                            query(fn.bounds(e), id)
+                        if distances[id] < module.largestdistance then query(fn.bounds(e), id)
 
                         # If not, or in generally also, just continue with next element
                         continue
@@ -1298,7 +1316,7 @@ gaze.extension({
             module.last.gazepos = p.window
 
         # Called when the first handler was added or removed
-        module._handlers.onpopulated = () -> removal = gaze.onfiltered func
+        module._handlers.onpopulated = () -> removal = gaze.onfiltered(func)
         module._handlers.onempty = () -> removal.remove()
 })
 
