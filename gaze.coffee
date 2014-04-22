@@ -608,7 +608,9 @@ gaze.extension({
         if not element? then return id
 
         # Eventually set it and return it
-        element.setAttribute("id", id);
+        if element.setAttribute then element.setAttribute("id", id);
+        else elements.id = id
+
         return id
 
 
@@ -1103,10 +1105,32 @@ gaze.extension({
         if not options.hittest? then options.hittest = false # if we should also emit "begin" and "end" messages for events
         if not options.volatile? then options.volatile = true # if, when given by a CSS element selector, the content of the selector might change
 
-        elements = ext.prepareelements(elements, options)
+        options.gazeovermap = {} # Stores attributes to elements
+        options.elementfn = {} # Stores functions to call on for elements
 
-        # We need this for internal handling
-        options.gazeovermap = {}
+
+
+        body = gaze.global.document.body
+
+        # Check if we are in canvas mode
+        if elements.elements
+            options.elementfn = {
+                contains: (e) -> true
+                bounds: (e) ->
+            }
+
+        else
+            hittest = @hittest
+
+            options.elementfn = {
+                contains: (e) -> body.contains(e)
+                bounds: (e) -> e.getBoundingClientRect()
+                hit: (p, e) -> hittest(p[0], p[1], e)
+                visible: (r, e) -> hittest(r.left + r.width / 2 , r.top + r.height / 2, e)
+            }
+
+        # Make sure all elements are in canonical format
+        elements = ext.prepareelements(elements, options)
 
         # Store largest distance and handlers
         ext.largestdistance = Math.max(ext.largestdistance, options.radiusout, options.radiusover)
@@ -1127,21 +1151,34 @@ gaze.extension({
     prepareelements: (elements, options) ->
         options.elementquery = null
 
-        if typeof elements == "string"
-            options.elementquery = elements
-            elements = @gaze._document.querySelectorAll(elements)
+        # First perform general check if elements have .elements property itself. If they do,
+        # we have elements given in "canvas" mode
+        if elements.elements
+            _elements = []
+            _elements.push( {"id": id} ) for id in elements.elements
+            elements = _elements
 
+        # In this case we have normal elements
         else
-            if not elements.length # Our test to see if it is an array
-                elements = [elements]
+            # Next check if a query selector was given
+            if typeof elements == "string"
+                options.elementquery = elements
+                elements = @gaze._document.querySelectorAll(elements)
 
-            # Can reset volatile flag since when not passed with a string, we
-            # don't need to be volatile anyway
-            options.volatile = false
+            # Okay, now we just have normal elements, one or many
+            else
+                if not elements.length # Our test to see if it is an array
+                    elements = [elements]
 
-        # Ensure all elements have IDs
-        @gaze.id(element) for element in elements
+                # Can reset volatile flag since when not passed with a string, we
+                # don't need to be volatile anyway
+                options.volatile = false
 
+
+            # Ensure all elements have IDs (only need to do that on non-canvas elements)
+            @gaze.id(element) for element in elements
+
+        # Eventually return normalized elements array
         return elements
 
 
@@ -1161,13 +1198,14 @@ gaze.extension({
             scale = gaze.browserpixelratio()
 
             rects = {}
-            distances = module.last.distances
 
+            distances = module.last.distances
             gazemoved = gaze.distance(module.last.gazepos, p.window)
 
-            # Actually queries a DOM element and stores the distances and position
-            query = (e, id) ->
-                r = e.getBoundingClientRect()
+            # Actually queries a DOM element and stores the distances and position.
+            # The main trick is that we use rects[] later as our main way to determine
+            # what we should process or not.
+            query = (r, id) ->
                 rects[id] = r
                 distances[id] = gaze.distance(p.window[0], p.window[1], r.left, r.top, r.width, r.height)
 
@@ -1177,6 +1215,7 @@ gaze.extension({
             module._handlers.each (f) ->
                 elements = f[0]
                 options = f[2]
+                fn = options.elementfn
 
                 # If we are volatile, query for new elements here
                 if options.volatile and options.elementquery
@@ -1184,7 +1223,7 @@ gaze.extension({
                     f[0] = elements # Also update the actual original elements
 
                 for e in elements
-                    if not document.body.contains(e) then continue
+                    if not fn.contains(e) then continue
                     id = e.id
 
                     # If the element already has a distance, assume we moved closer by gaze delta
@@ -1193,20 +1232,22 @@ gaze.extension({
 
                         # If now we are within the critical radius, query it again
                         if distances[id] < module.largestdistance
-                            query(e, id)
+                            query(fn.bounds(e), id)
 
                         # If not, or in generally also, just continue with next element
                         continue
 
                     # In case we did not have a distance, just continue anyway
-                    query(e, id)
+                    query(fn.bounds(e), id)
 
 
-            # Every thing that was registered with on... will be treated individually
+            # Now for the real thing, we go through all registered handlers:
+            # Every thing that was registered with on ... will be treated individually
             module._handlers.each (f) ->
                 elements = f[0]
                 callback = f[1]
                 options = f[2]
+                fn = options.elementfn
 
                 gazeovermap = options.gazeovermap
                 hittest = options.hittest
@@ -1233,8 +1274,8 @@ gaze.extension({
                     visible = true
                     hit = true
 
-                    if visibilitytest then visible = gaze.hittest(r.left + r.width / 2 , r.top + r.height / 2, e)
-                    if hittest then hit = gaze.hittest(p.window[0], p.window[1], e)
+                    if visibilitytest then visible = fn.hit(r, e)
+                    if hittest then hit = fn.hit(p.window, e)
 
                     # Check if we hit the element
                     if distance <= options.radiusover / scale and visible and hit
