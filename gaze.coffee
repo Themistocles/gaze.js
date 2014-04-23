@@ -45,7 +45,7 @@ extensionorder = [] # order in which to initialize ["raw", "filtered", "dwell", 
 
 
 # Potential problems
-#   error = terminal failure to eye tracking until reinitialized
+#   error = terminal failure to eye tracking until reinitialized / page reloaded
 #   warning = temporary failure or data likely corrupt
 #   info = might be problem, might be not
 #
@@ -761,7 +761,7 @@ gaze.extension({
 
 
     init: (gaze, module) ->
-        module._gaze =
+        module._gaze = gaze
 
         # "Override" active method of gaze object
         _active = gaze.active.bind(gaze)
@@ -946,7 +946,7 @@ gaze.extension({
         func = (packet) ->
             # In case we don't have the focus, we don't do anything
             if not gaze.active() then return
-            module._handlers.invoke packet.filtered
+            module._handlers.invoke(packet.filtered)
 
         # Called when the first handler was added or removed
         module._handlers.onpopulated = () -> removal = gaze.onframe(func)
@@ -1117,7 +1117,7 @@ gaze.extension({
         if not options.continueover? then options.continueover = false # should continue to send "over" messages while inside every frame?
         if not options.visibilitytest? then options.visibilitytest = false # if we should check if the element is actually visible
         if not options.transaction? then options.transaction = false # if we should also emit "begin" and "end" messages for events
-        if not options.hittest? then options.hittest = false # if we should also emit "begin" and "end" messages for events
+        if not options.hittest? then options.hittest = false # if we should try to hit the element
         if not options.volatile? then options.volatile = true # if, when given by a CSS element selector, the content of the selector might change
 
         options.gazeovermap = {} # Stores attributes to elements
@@ -1166,8 +1166,6 @@ gaze.extension({
 
     ### Prepares new elements for handling ###
     prepareelements: (elements, options) ->
-        options.elementquery = null
-
         # First perform general check if elements have .elements property itself. If they do,
         # we have elements given in "canvas" mode
         if elements.elements
@@ -1233,7 +1231,6 @@ gaze.extension({
                 options = f[2]
                 fn = options.elementfn
 
-
                 # If we are volatile, query for new elements here
                 if options.volatile and options.elementquery
                     elements = module.prepareelements(options.elementquery, options)
@@ -1295,17 +1292,20 @@ gaze.extension({
                     visible = true
                     hit = true
 
-                    if visibilitytest then visible = fn.hit(r, e)
+                    if visibilitytest then visible = fn.visible(r, e)
                     if hittest then hit = fn.hit(p.window, e)
+
+                    # In any case, things can only be visible if they have width and height
+                    visible = visible && r.width > 0 && r.height > 0
 
                     # Check if we hit the element
                     if distance <= options.radiusover / scale and visible and hit
                         if (not gazeovermap[id]) or options.continueover
-                            callback {type:"over", element: e, distance: distance, gazewindow: p.window, options: options}
+                            callback { type:"over", element: e, distance: distance, gazewindow: p.window, options: options}
                             gazeovermap[id] = true
 
                     else if gazeovermap[id] and distance > options.radiusout
-                            callback {type:"out", element: e, distance: distance, gazewindow: p.window, options: options}
+                            callback { type:"out", element: e, distance: distance, gazewindow: p.window, options: options}
                             gazeovermap[id] = false
 
 
@@ -1335,8 +1335,6 @@ gaze.extension({
 
         # Setup gazeover for select function
         options.transaction = true
-        options.visibilitytest = false
-        options.hittest = false
         options.continueover = true # Have to be continuous since we need updated distances
         options.radiusover = options.selectradius
         options.radiusout = options.selectradius + 30
@@ -1414,7 +1412,6 @@ gaze.extension({
     selecthandler: (event) ->
         options = event.options
         selectmap = options.selectmap
-
         # After the end of the batch call we do our calculations
         if event.type == "end"
             @processor(event.elements, options)
@@ -1437,7 +1434,6 @@ gaze.extension({
             # If we actually hit the element, bump score even higher
             if options.overlapping and @gaze.hittest(event.gazewindow[0], event.gazewindow[1], element)
                 map.selectdistance = 5
-
 
 
         # If it was out, disregard it
@@ -1493,7 +1489,13 @@ gaze.extension({
         # Function called when user leaves any dwellable element
         deacivator = () ->
             if that.last == null then return
-            options.dwelllistener({ type: "deselected", last: that.last, options: options })
+
+            #
+            try
+                options.dwelllistener({ type: "deselected", last: that.last, options: options })
+            catch e
+                console.log(e)
+
             that.last = null
 
 
